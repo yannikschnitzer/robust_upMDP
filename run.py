@@ -6,7 +6,7 @@ from PAC.funcs import *
 
 def main():
     args = get_args()
-    discarding = args["eta"] is not None
+    discarding = args["lambda"] is not None
     if args["test"]:
         test = mod.get_model()
         probs = []
@@ -25,11 +25,11 @@ def main():
                 if res[0] < min_prob:
                     min_prob = res[0]
             else:
-                if res[0] < args["eta"]:
+                if res[0] < args["lambda"]:
                     discarded += 1
         print(discarded)
         if discarding:
-            min_prob = args["eta"]
+            min_prob = args["lambda"]
             thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
         else:
             thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])

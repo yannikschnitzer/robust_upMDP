@@ -11,7 +11,7 @@ def run():
     opts = {"test":False,
             "num_samples":100,
             "beta":0.99,
-            "eta":None
+            "lambda":None
             }
     if "--test" in sys.argv:
         opts["test"] = True
@@ -33,14 +33,14 @@ def run():
             opts["beta"] = int_val
         except ValueError:
             raise Exception("Please select a valid probability for flag -beta")
-    if "-eta" in sys.argv:
-        val = get_val("-eta")
+    if "-lambda" in sys.argv:
+        val = get_val("-lambda")
         try:
             int_val=float(val)
             if int_val > 1 or int_val < 0:
                 raise ValueError
-            opts["eta"] = int_val
+            opts["lambda"] = int_val
         except ValueError:
-            raise Exception("Please select a valid probability for flag -eta")
+            raise Exception("Please select a valid probability for flag -lambda")
  
     return opts
