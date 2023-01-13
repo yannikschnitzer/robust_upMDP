@@ -33,28 +33,32 @@ def main():
         if optimising:
             N = args["num_samples"]
             x_s = cp.Variable(1+N)
-            c = np.ones((N+1,1))*args["rho"]
+            c = -np.ones((N+1,1))*args["rho"]
             c[0] = 1
 
             b = np.array([0]+probs)
             A = np.eye(N+1)
             A[:, 0] = -1
+            A[0,0] = 1
             A = -A
 
-            import pdb; pdb.set_trace()
-            objective = cp.Minimize(c.T@x_s)
-            constraints = [A@x_s >= b]
+            objective = cp.Maximize(c.T@x_s)
+            constraints = [A@x_s <= b, x_s >= 0]
             prob = cp.Problem(objective, constraints)
             result = prob.solve()
-            print(x.value)
-            import pdb; pdb.set_trace()
-        print(discarded)
+
+            etas = x_s.value[1:]
+            tau = x_s.value[0]
+            
+            [epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], N, np.sum(etas>=0))
+            print("New sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
         if discarding:
             thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
+            print("Discarded {} samples".format(discarded))
         else:
             thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])
 
-        print(("Probability of new sample satisfying formula with probability {:.3f}"+
+        print(("Probability of new sample satisfying formula with probability at least {:.3f}"+
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
         #opt_pol, rew = IO.read()

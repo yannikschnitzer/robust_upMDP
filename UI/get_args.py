@@ -47,10 +47,8 @@ def run():
         val = get_val("-rho")
         try:
             int_val=float(val)
-            if int_val > 1 or int_val < 0:
-                raise ValueError
             opts["rho"] = int_val
         except ValueError:
-            raise Exception("Please select a valid probability for flag -lambda")
+            raise Exception("Please select a valid probability for flag -rho")
  
     return opts
