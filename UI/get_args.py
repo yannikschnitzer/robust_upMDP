@@ -8,14 +8,15 @@ def get_val(flag):
         return sys.argv[ind+1]
 
 def run():
-    opts = {"test":False,
+    opts = {"model":"test",
             "num_samples":100,
             "beta":0.99,
-            "lambda":None,
-            "rho":None,
+            "lambda":1,
+            "rho":1,
             }
-    if "--test" in sys.argv:
-        opts["test"] = True
+    if "--model" in sys.argv:
+        val = get_val("--model")
+        opts["model"] = val
     if "-N" in sys.argv:
         val = get_val("-N")
         try:
