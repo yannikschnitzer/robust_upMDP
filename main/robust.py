@@ -2,27 +2,36 @@ import numpy as np
 import cvxpy as cp
 import Markov.writer as writer
 from PAC.funcs import *
+import itertools
 
-def calc_probs(model, N):
-    probs = []
+def calc_probs_exhaustive(model, N):
     min_prob = 1
     discarded = 0
+    pols = list(itertools.product(*model.Enabled_actions)) 
+    
+    probs = [[] for i in pols]
     for i in range(N):
         sample = model.sample_MDP()
         
+        for i, pol in enumerate(pols):
+            sampled_MC = sample.fix_pol(pol)
         #IO = writer.PRISM_io(sample)
-        IO = writer.stormpy_io(sample)
-        IO.write()
+            IO = writer.stormpy_io(sampled_MC)
+            IO.write()
         #IO.solve_PRISM()
-        res, all_res = IO.solve()
-        probs += res
-    return probs
+            res, all_res = IO.solve()
+            probs[i] += res
+    min_probs = [min(elem) for elem in probs]
+    max_min = max(min_probs)
+    pol_ind = min_probs.index(max_min)
+    pol = pols[pol_ind]
+    return probs[pol_ind], pol
 
 
 def discard(lambda_val, probs):
     min_prob = 1
     discarded=0
-    undiscarded = [p_val for p_val in probs if p_val > lambda_val]
+    undiscarded = [p_val for p_val in probs if p_val < lambda_val]
 
     min_prob = min(undiscarded)
     discarded = len(probs)-len(undiscarded)
@@ -52,7 +61,7 @@ def optimise(rho, probs):
     return tau, etas
 
 def run_all(model, args):
-    probs = calc_probs(model, args["num_samples"])
+    probs, pol = calc_probs_exhaustive(model, args["num_samples"])
     min_prob, discarded = discard(args["lambda"], probs)
     tau, etas = optimise(args["rho"], probs)
     [epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))
@@ -64,11 +73,9 @@ def run_all(model, args):
     else:
         thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])
 
-    print(("Upper bound on violation probability for formula with probability at least {:.3f}"+
+    print(("Probability of new sample satisfying formula with probability at least {:.3f}"+
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
-    out, inn = MC_sampler(model, 1000, 10, min_prob, thresh) 
-    print("Empirical violation rate is found to be (on average) {:.3f}, with confidence {:.3f}".format(inn,out))
 
 if __name__=="__main__":
     main()

@@ -12,7 +12,9 @@ def get_model():
     
     zero = t_f.fixed(0)
     one = t_f.fixed(1)
-    
+   
+    test_val = 0.49
+
     Test_Model.Transition_probs = [
         [
             [one],
@@ -23,17 +25,19 @@ def get_model():
             [t_f.linear, t_f.one_minus_linear],
         ],
         [
-            [t_f.fixed(0.51), t_f.fixed(0.49)],
+            [t_f.fixed(test_val), t_f.fixed(1-test_val)],
         ],
         [
             [t_f.one_minus_linear, t_f.linear],
         ],
         [
+            [one]
         ],
         [
+            [one]
         ]]
 
-    Test_Model.trans_ids = [[[1],[2],[3]],[[4,5]],[[4,5]],[[4,5]],[[]],[[]]]
+    Test_Model.trans_ids = [[[1],[2],[3]],[[4,5]],[[4,5]],[[4,5]],[[4]],[[5]]]
 
     Test_Model.param_sampler = samplers.gauss(0.5, 0.2)
     
@@ -44,6 +48,6 @@ def get_model():
         
     Test_Model.Formulae = ["Pmax=? [ F \"reached\"]"]
 
-    Test_Model.Enabled_actions = [[0,1,2],[0],[0],[0],[],[]]
+    Test_Model.Enabled_actions = [[0,1,2],[0],[0],[0],[0],[0]]
 
     return Test_Model
