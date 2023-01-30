@@ -31,9 +31,12 @@ def calc_probs_exhaustive(model, N):
 def discard(lambda_val, probs):
     min_prob = 1
     discarded=0
-    undiscarded = [p_val for p_val in probs if p_val < lambda_val]
+    undiscarded = [p_val for p_val in probs if p_val > lambda_val]
 
-    min_prob = min(undiscarded)
+    if len(undiscarded)>0:
+        min_prob = min(undiscarded)
+    else:
+        min_prob = lambda_val
     discarded = len(probs)-len(undiscarded)
 
     return min_prob, discarded
@@ -76,6 +79,9 @@ def run_all(model, args):
     print(("Probability of new sample satisfying formula with probability at least {:.3f}"+
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
+    if args["MC"]:
+        out, inn = MC_sampler(model, args["MC_runs"], args["MC_samples"], min_prob, thresh, pol) 
+        print("Empirical violation rate is found to be (on average) {:.3f}, with confidence {:.3f}".format(inn,out))
 
 if __name__=="__main__":
     main()

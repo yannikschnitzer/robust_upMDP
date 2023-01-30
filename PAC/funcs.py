@@ -9,14 +9,14 @@ def MC_sampler(model, k, N, thresh, violation_prob, pol=None):
     for i in tqdm(range(N)):
         inn_count = 0
         for j in range(k):
-            if pol is None:
-                sample = model.sample_MDP()
-                IO = writer.stormpy_io(sample)
-                IO.write()
-                #IO.solve_PRISM()
-                res, all_res = IO.solve()
-                if res[0] <= thresh:
-                    inn_count+= 1
+            sample = model.sample_MDP()
+            if pol is not None:
+                sample = sample.fix_pol(pol)
+            IO = writer.stormpy_io(sample)
+            IO.write()
+            res, all_res = IO.solve()
+            if res[0] <= thresh:
+                inn_count+= 1
         inn_prob = inn_count/k
         avg_inn += inn_prob
         if inn_prob > violation_prob:
@@ -30,7 +30,7 @@ def calc_eta_var_thresh(beta, N):
 
 def calc_eta_discard(beta, N, discarded):
     if N == discarded:
-        return 1
+        return 0
     else:    
         beta_bar = (1-beta)/N
         d = 1

@@ -23,8 +23,11 @@ def discard(lambda_val, probs):
     min_prob = 1
     discarded=0
     undiscarded = [p_val for p_val in probs if p_val > lambda_val]
-
-    min_prob = min(undiscarded)
+    
+    if len(undiscarded)>0:
+        min_prob = min(undiscarded)
+    else:
+        min_prob = 0
     discarded = len(probs)-len(undiscarded)
 
     return min_prob, discarded
@@ -67,8 +70,9 @@ def run_all(model, args):
     print(("Upper bound on violation probability for formula with probability at least {:.3f}"+
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
-    out, inn = MC_sampler(model, 1000, 10, min_prob, thresh) 
-    print("Empirical violation rate is found to be (on average) {:.3f}, with confidence {:.3f}".format(inn,out))
+    if args["MC"]:
+        out, inn = MC_sampler(model, args["MC_runs"], args["MC_samples"], min_prob, thresh, pol) 
+        print("Empirical violation rate is found to be (on average) {:.3f}, with confidence {:.3f}".format(inn,out))
 
 if __name__=="__main__":
     main()

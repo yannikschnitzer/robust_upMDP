@@ -1,0 +1,50 @@
+from UI.parsers import *
+
+opt_settings = {"model":{"parser":parse_str, 
+                         "args":["test"], 
+                         "flags":["--model"],
+                         "default":"test"
+                         },
+                "num_samples":{
+                    "parser":parse_num, 
+                    "args":[int,1], 
+                    "flags":["-N"],
+                    "default":100
+                    },
+                "beta":{
+                    "parser":parse_num,
+                    "args":[float,0,1], 
+                    "flags":["-beta"],
+                    "default":0.99
+                    },
+                "lambda":{
+                    "parser":parse_num,
+                    "args":[float, 0, 1], 
+                    "flags":["-lambda"],
+                    "default":1
+                    },
+                "rho":{
+                    "parser":parse_num,
+                    "args":[float,0], 
+                    "flags":["-rho"],
+                    "default":1
+                    },
+                "MC":{
+                    "parser":parse_bool,
+                    "args":[], 
+                    "flags":["--MC"],
+                    "default":False
+                    },
+                "MC_runs":{
+                    "parser":parse_num,
+                    "args":[int, 1], 
+                    "flags":["--runs"],
+                    "default":100
+                    },
+                "MC_samples":{
+                    "parser":parse_num,
+                    "args":[int, 1], 
+                    "flags":["--MC_samples"],
+                    "default":1000
+                    },
+                }
