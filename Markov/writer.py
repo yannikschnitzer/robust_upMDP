@@ -62,11 +62,15 @@ class stormpy_io:
         return builder.build() 
         
     def write(self):
-        labels = self._write_labels()
-        trans_mat = self._write_transitions()  
-        components = stormpy.SparseModelComponents(trans_mat, labels)
-        self.mdp = stormpy.storage.SparseMdp(components)
-        self.specs = self._write_specification()
+        if hasattr(self.model, "mdp"):
+            self.mdp = self.model.mdp
+            self.specs = self.model.props
+        else:
+            labels = self._write_labels()
+            trans_mat = self._write_transitions()  
+            components = stormpy.SparseModelComponents(trans_mat, labels)
+            self.mdp = stormpy.storage.SparseMdp(components)
+            self.specs = self._write_specification()
         
 
     def _write_specification(self):
@@ -76,12 +80,20 @@ class stormpy_io:
         return specs
 
     def solve(self):
-        res = []
-        all_res = []
-        for spec in self.specs:
-            result = stormpy.check_model_sparse(self.mdp, spec)
-            all_res.append([result.at(init) for init in self.mdp.initial_states])
-            res.append(result.at(self.mdp.initial_states[self.model.Init_state]))
+        if hasattr(self.model, "mdp"):
+            res = []
+            all_res = []
+            for spec in self.specs:
+                result = stormpy.model_checking(self.mdp, spec)
+                all_res.append([result.at(init) for init in self.mdp.initial_states])
+                res.append(result.at(self.mdp.initial_states[self.model.Init_state]))
+        else: 
+            res = []
+            all_res = []
+            for spec in self.specs:
+                result = stormpy.check_model_sparse(self.mdp, spec)
+                all_res.append([result.at(init) for init in self.mdp.initial_states])
+                res.append(result.at(self.mdp.initial_states[self.model.Init_state]))
         return res, all_res
 
 class PRISM_io:

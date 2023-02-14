@@ -1,7 +1,7 @@
 from UI.parsers import *
 
-opt_settings = {"model":{"parser":parse_str, 
-                         "args":[["test", "test2", "test3"]], 
+opt_settings = {"model":{"parser":parse_model, 
+                         "args":[["test", "test2", "test3","drone"]], 
                          "flags":["--model"],
                          "default":"test"
                          },

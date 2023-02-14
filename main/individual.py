@@ -53,7 +53,8 @@ def optimise(rho, probs):
     
     return tau, etas
 
-def run_all(model, args):
+def run_all(args):
+    model = args["model"]
     print("Running code for individual optimal policies \n --------------------")
     probs = calc_probs(model, args["num_samples"])
     min_prob, discarded = discard(args["lambda"], probs)

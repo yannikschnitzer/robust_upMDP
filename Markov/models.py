@@ -1,4 +1,5 @@
 import numpy as np
+import Markov.storm_interface as storm_ui
 
 class base:
     """
@@ -80,6 +81,21 @@ class pMDP(MDP):
         fixed_MDP.trans_ids = self.trans_ids
 
         return fixed_MDP
+
+class storm_MDP:
+    mdp = None
+    props = None
+
+class storm_upMDP:
+
+    def sample_MDP(self):
+        sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)
+        out = storm_MDP()
+        out.mdp = sample
+        out.props = self.props
+        out.Init_state = self.Init_state
+        return out
+
 
 class upMDP(pMDP):
     """
