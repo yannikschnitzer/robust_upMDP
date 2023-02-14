@@ -5,7 +5,7 @@ import Markov.writer as writer
 
 def MC_sampler(model, k, N, thresh, violation_prob, pol=None):
     out_count = 0
-    avg_inn = 0
+    inn = []
     for i in tqdm(range(N)):
         inn_count = 0
         for j in range(k):
@@ -15,15 +15,17 @@ def MC_sampler(model, k, N, thresh, violation_prob, pol=None):
             IO = writer.stormpy_io(sample)
             IO.write()
             res, all_res = IO.solve()
-            if res[0] <= thresh:
+            if res[0] < thresh:
                 inn_count+= 1
         inn_prob = inn_count/k
-        avg_inn += inn_prob
+        inn += [inn_prob]
         if inn_prob > violation_prob:
             out_count += 1
     out_prob = out_count/N
-    avg_inn /= N
-    return 1-out_prob, avg_inn
+    avg_inn = sum(inn)/N
+    max_inn = max(inn)
+    min_inn = min(inn)
+    return 1-out_prob, min_inn, avg_inn, max_inn
 
 def calc_eta_var_thresh(beta, N):
     return 1-(1-beta)**(1/N)

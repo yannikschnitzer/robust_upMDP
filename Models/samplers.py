@@ -1,6 +1,6 @@
-import random
+import numpy.random as rnd
 
 def gauss(mu, sigma):
     def gauss_sampler():
-        return random.gauss(mu, sigma)
+        return rnd.multivariate_normal(mu, sigma)
     return gauss_sampler

@@ -1,7 +1,7 @@
 from UI.parsers import *
 
 opt_settings = {"model":{"parser":parse_str, 
-                         "args":["test"], 
+                         "args":[["test", "test2", "test3"]], 
                          "flags":["--model"],
                          "default":"test"
                          },
@@ -21,7 +21,7 @@ opt_settings = {"model":{"parser":parse_str,
                     "parser":parse_num,
                     "args":[float, 0, 1], 
                     "flags":["-lambda"],
-                    "default":1
+                    "default":0
                     },
                 "rho":{
                     "parser":parse_num,

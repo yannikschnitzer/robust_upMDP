@@ -22,14 +22,13 @@ def calc_probs(model, N):
 def discard(lambda_val, probs):
     min_prob = 1
     discarded=0
-    undiscarded = [p_val for p_val in probs if p_val > lambda_val]
+    undiscarded = [p_val for p_val in probs if p_val >= lambda_val]
     
     if len(undiscarded)>0:
         min_prob = min(undiscarded)
     else:
         min_prob = 0
     discarded = len(probs)-len(undiscarded)
-
     return min_prob, discarded
 
 def optimise(rho, probs):
@@ -55,13 +54,14 @@ def optimise(rho, probs):
     return tau, etas
 
 def run_all(model, args):
+    print("Running code for individual optimal policies \n --------------------")
     probs = calc_probs(model, args["num_samples"])
     min_prob, discarded = discard(args["lambda"], probs)
     tau, etas = optimise(args["rho"], probs)
     [epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))
 
     print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
-    if args["lambda"] < 1:
+    if args["lambda"] > 0:
         thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
         print("Discarded {} samples".format(discarded))
     else:
@@ -71,8 +71,9 @@ def run_all(model, args):
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
     if args["MC"]:
-        out, inn = MC_sampler(model, args["MC_runs"], args["MC_samples"], min_prob, thresh, pol) 
-        print("Empirical violation rate is found to be (on average) {:.3f}, with confidence {:.3f}".format(inn,out))
+        out, min_inn, inn, max_inn = MC_sampler(model, args["MC_samples"], args["MC_runs"], min_prob, thresh, None) 
+        print("Empirical violation rate is found to be between {:.3f} and {:.3f} with mean {:.3f}, with confidence {:.3f}".format(min_inn, max_inn, inn, out))
+    print("\n\n")
 
 if __name__=="__main__":
     main()
