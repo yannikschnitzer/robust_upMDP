@@ -128,11 +128,15 @@ def with_relaxation(rho, probs):
     return tau, etas
 
 def run_all(args):
+    print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
     
     a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
 
     probs, pol = calc_probs_policy_iteration(model, args["num_samples"])
+   
+    print("Calculated robust policy is:")
+    print(pol)
 
     min_prob, discarded = discard(args["lambda"], probs)
     #[epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))

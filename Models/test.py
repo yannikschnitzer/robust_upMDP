@@ -13,7 +13,7 @@ def get_model():
     zero = t_f.fixed(0)
     one = t_f.fixed(1)
    
-    test_val = 0.49
+    test_val = 0.3
 
     Test_Model.Transition_probs = [
         [
