@@ -30,13 +30,12 @@ def calc_probs_exhaustive(model, N):
     pol = pols[pol_ind]
     return probs[pol_ind], pol
 
-def calc_probs_policy_iteration(model, N, max_iters=1000):
+def calc_probs_policy_iteration(model, N, max_iters=1000, tol=1e-5):
     sampled_trans_probs = []
     for i in range(N):
         sample = model.sample_MDP()
         sampled_trans_probs.append(sample.Transition_probs)
    
-    import pdb; pdb.set_trace()
     num_states = len(model.States)
     num_acts = len(model.Actions)
 
@@ -52,10 +51,9 @@ def calc_probs_policy_iteration(model, N, max_iters=1000):
     objective = cp.Maximize(np.ones((num_states,1)).T@worst_case)
     A = np.ones((num_acts, 1))
     b = np.ones((num_states, 1))
+    old_wc = np.ones(num_states)
+    converged=False
     for i in range(max_iters):
-
-        #something is not quite right below?? Probabilities not being "pulled up" to correct values
-
         constraints = [new_probs <= 1, new_probs >= 0, pi@A == b, pi >= 0]
         probs_s_a = [
                         [
@@ -70,34 +68,29 @@ def calc_probs_policy_iteration(model, N, max_iters=1000):
 
         for k in range(N):
             constraints += [worst_case[s] <= new_probs[s,k] for s in model.States]
-            constraints += [new_probs[s,k] <= 
+            constraints += [new_probs[s,k] == 
                          sum([pi[s,a]*probs_s_a[k][s_num][a_num] 
                               for a_num, a in enumerate(model.Enabled_actions[s_num])]) 
                              for s_num, s in enumerate(model.States)]
         program = cp.Problem(objective, constraints)
         result = program.solve()
+        if np.linalg.norm(probs.value - new_probs.value, ord=np.inf) <= tol:
+            converged=True
+            break
+        old_wc = worst_case.value
         probs.value = new_probs.value
-        print(pi.value)
-        print(worst_case.value)
-        import pdb; pdb.set_trace()
 
-    x_s = cp.Variable(1+N)
-    c = -np.ones((N+1,1))*rho
-    c[0] = 1
-
-    b = np.array([0]+probs)
-    A = np.eye(N+1)
-    A[:, 0] = -1
-    A[0,0] = 1
-    A = -A
-
-    objective = cp.Maximize(c.T@x_s)
-    constraints = [A@x_s <= b, x_s >= 0]
-
-    etas = x_s.value[1:]
-    tau = x_s.value[0]
+    num_supports = 0
+    for s in range(num_states):
+        max_sc = len(model.Enabled_actions[s])
+        found_sc = np.sum(probs.value[s] <= worst_case.value[s]+tol)
+        if found_sc <= max_sc:
+            num_supports += found_sc
     
-
+    if converged:
+        return probs.value[model.Init_state], pi.value
+    else:
+        return -1, -1
 
 def discard(lambda_val, probs):
     min_prob = 1
@@ -112,7 +105,7 @@ def discard(lambda_val, probs):
 
     return min_prob, discarded
 
-def optimise(rho, probs):
+def with_relaxation(rho, probs):
     N = len(probs)
     x_s = cp.Variable(1+N)
     c = -np.ones((N+1,1))*rho
@@ -136,20 +129,26 @@ def optimise(rho, probs):
 
 def run_all(args):
     model = args["model"]
+    
+    a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
+
     probs, pol = calc_probs_policy_iteration(model, args["num_samples"])
+
     min_prob, discarded = discard(args["lambda"], probs)
-    tau, etas = optimise(args["rho"], probs)
-    [epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))
+    #[epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))
 
-    print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
-    if args["lambda"] < 1:
-        thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
-        print("Discarded {} samples".format(discarded))
-    else:
-        thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])
+    #print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
+    
+    
 
-    print(("Probability of new sample satisfying formula with probability at least {:.3f}"+
-               " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
+    #if args["lambda"] > 0:
+    #    thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
+    #    print("Discarded {} samples".format(discarded))
+    #else:
+    #    thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])
+    
+    #print(("Upper bound on violation probability for formula with probability at least {:.3f}"+
+    #           " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
     if args["MC"]:
         out, inn = MC_sampler(model, args["MC_runs"], args["MC_samples"], min_prob, thresh, pol) 
