@@ -42,17 +42,8 @@ def calc_probs_policy_iteration(model, samples, max_iters=1000, tol=1e-5):
     converged=False
     for i in range(max_iters):
         constraints = [new_probs <= 1, new_probs >= 0, pi@A == b, pi >= 0]
-        #probs_s_a = [
-        #                [
-        #                    [
-        #                        sum([samples[k][s_num][a_num][s_prime_num]\
-        #                                *probs[s_prime,k] 
-        #                             for s_prime_num, s_prime in enumerate(model.trans_ids[s_num][a_num])]) 
-        #                        for a_num, a_id in enumerate(model.Enabled_actions[s_id])] 
-        #                    for s_num, s_id in enumerate(model.States)] 
-        #                for k in range(N)
-        #            ]
-        print("state action transitions built")
+        # might be more efficient to only check states that will change 
+        # (i.e. with a transition to a state that has a changed value for probs)
         for k in tqdm(range(N)):
             constraints += [worst_case[s] <= new_probs[s,k] for s in model.States]
             constraints += [new_probs[s,k] == 
