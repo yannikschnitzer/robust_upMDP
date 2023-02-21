@@ -37,9 +37,20 @@ class MDP(base):
         trans_ids = []
         for s in self.States:
             if len(self.Enabled_actions[s])>0:
-                act = pol[s]
-                trans_probs.append(self.Transition_probs[s][act])
-                trans_ids.append(self.trans_ids[s][act])
+                trans_probs_s = []
+                trans_ids_s = []
+                for act_num, act in enumerate(self.Enabled_actions[s]):
+                    act_prob = pol[s][act]
+                    trans_probs_s_a = [act_prob*p for p in self.Transition_probs[s][act_num]]
+                    trans_ids_s_a = self.trans_ids[s][act_num]
+                    for i, s_prime in enumerate(trans_ids_s_a):
+                        if s_prime in trans_ids_s:
+                            trans_probs_s[trans_ids_s.index(s_prime)] += trans_probs_s_a[i]
+                        else:
+                            trans_probs_s.append(trans_probs_s_a[i])
+                            trans_ids_s.append(s_prime)
+                trans_probs.append(trans_probs_s)
+                trans_ids.append(trans_ids_s)
             else:
                 trans_probs.append([])
                 trans_ids.append([])
@@ -85,6 +96,16 @@ class pMDP(MDP):
 class storm_MDP:
     mdp = None
     props = None
+    
+    States = None
+    Actions = None
+    Transition_probs = None
+    Init_state = None
+    Labels = None
+    Labelled_states = None
+    Name = None
+    trans_ids = None
+    Formulae = None
 
 class storm_upMDP:
 
@@ -94,6 +115,16 @@ class storm_upMDP:
         out.mdp = sample
         out.props = self.props
         out.Init_state = self.Init_state
+      
+        out.Transition_probs = [[[transition.value() for transition in action.transitions] for action in state.actions] for state in sample.states]
+        #out.trans_ids = [[[transition.column for transition in action.transitions] for action in state.actions] for state in sample.states]
+        out.trans_ids = self.trans_ids
+        out.States = self.States
+        out.Actions = self.Actions
+        out.Labels = self.Labels
+        out.Labelled_states = self.Labelled_states
+        out.Formulae = self.Formulae
+        
         return out
 
 

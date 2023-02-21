@@ -9,7 +9,7 @@ from main.robust import run_all as robust_run
 
 def main():
     args = get_args()
-    #run_all(args)
+    run_all(args)
     robust_run(args)
 
 if __name__=="__main__":

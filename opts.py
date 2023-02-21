@@ -36,16 +36,10 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["--MC"],
                     "default":False
                     },
-                "MC_runs":{
-                    "parser":parse_num,
-                    "args":[int, 1], 
-                    "flags":["--runs"],
-                    "default":100
-                    },
                 "MC_samples":{
                     "parser":parse_num,
                     "args":[int, 1], 
                     "flags":["--MC_samples"],
-                    "default":1000
+                    "default":10000
                     },
                 }

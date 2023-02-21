@@ -59,7 +59,7 @@ def run_all(args):
     probs = calc_probs(model, args["num_samples"])
     min_prob, discarded = discard(args["lambda"], probs)
     tau, etas = optimise(args["rho"], probs)
-    [epsL, epsU] = calc_eps_risk_complexity(1-args["beta"], args["num_samples"], np.sum(etas>=0))
+    [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
 
     print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
     if args["lambda"] > 0:
@@ -72,8 +72,8 @@ def run_all(args):
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
     if args["MC"]:
-        out, min_inn, inn, max_inn = MC_sampler(model, args["MC_samples"], args["MC_runs"], min_prob, thresh, None) 
-        print("Empirical violation rate is found to be between {:.3f} and {:.3f} with mean {:.3f}, with confidence {:.3f}".format(min_inn, max_inn, inn, out))
+        emp_violation = MC_sampler(model, args["MC_samples"], min_prob, thresh, None) 
+        print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
     print("\n\n")
 
 if __name__=="__main__":

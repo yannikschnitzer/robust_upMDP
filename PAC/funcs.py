@@ -3,29 +3,25 @@ from scipy.stats import beta as betaF
 from tqdm import tqdm
 import Markov.writer as writer
 
-def MC_sampler(model, k, N, thresh, violation_prob, pol=None):
-    out_count = 0
-    inn = []
-    for i in tqdm(range(N)):
-        inn_count = 0
-        for j in range(k):
-            sample = model.sample_MDP()
-            if pol is not None:
-                sample = sample.fix_pol(pol)
-            IO = writer.stormpy_io(sample)
-            IO.write()
-            res, all_res = IO.solve()
-            if res[0] < thresh:
-                inn_count+= 1
-        inn_prob = inn_count/k
-        inn += [inn_prob]
-        if inn_prob > violation_prob:
-            out_count += 1
-    out_prob = out_count/N
-    avg_inn = sum(inn)/N
-    max_inn = max(inn)
-    min_inn = min(inn)
-    return 1-out_prob, min_inn, avg_inn, max_inn
+def MC_sampler(model, k, thresh, violation_prob, pol=None):
+    inn_count = 0
+    for j in tqdm(range(k)):
+        sample = model.sample_MDP()
+        if pol is not None:
+            sample = sample.fix_pol(pol)
+        IO = writer.stormpy_io(sample)
+        IO.write()
+        res, all_res = IO.solve()
+        if res[0] < thresh:
+            inn_count+= 1
+    
+    violation_rate = inn_count/k
+    
+    return violation_rate
+
+def calc_eps(beta, N, d):
+    eps = betaF.ppf(beta, d, N-d+1)
+    return eps
 
 def calc_eta_var_thresh(beta, N):
     return 1-(1-beta)**(1/N)
@@ -45,10 +41,11 @@ def calc_eta_fixed_discard(beta, N, k):
     else:    
         beta_bar = (1-beta)
         d = 1
-        return 1-betaF.ppf(1-beta_bar, k+d, N-(d+k)+1) 
+        return betaF.ppf(1-beta_bar, k+d, N-(d+k)+1) 
     #return 1-k/N-(np.sqrt(k)/N+((np.sqrt(k)+1)/N)*np.log(1/(1-beta)))
 
 def calc_eps_risk_complexity(beta, N, k):
+    beta = 1 - beta
     alphaL = betaF.ppf(beta, k, N-k+1)
     alphaU = 1-betaF.ppf(beta, N-k+1, k)
 
