@@ -12,18 +12,22 @@ def gen_samples(model, N):
         sampled_trans_probs.append(sample.Transition_probs)
     return sampled_trans_probs
 
-def calc_probs_policy_iteration(model, samples, max_iters=1000, tol=1e-5):
-  
-    N = len(samples)
+def calc_reach_sets(model):
+    backward_reach = [[] for s in model.States]
+    for state in model.States:
+        successors = set()
+        for elem in model.trans_ids[state]:
+            successors.update(elem)
+        for succ in successors:
+            backward_reach[succ].append(state)
+    return backward_reach
 
-    num_states = len(model.States)
-    num_acts = len(model.Actions)
+def calc_max_path(backward_reach):
 
-    probs = cp.Parameter((num_states,N))
-    prob_init = np.zeros((num_states,N))
-    for reached in model.Labelled_states[model.Labels.index("reached")]:
-        prob_init[reached, :] = 1.0
-    probs.value = prob_init 
+    # not implemented yet
+    return len(backward_reach)
+
+def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
   
     # test for test 2, should get optimal policy 0.5, 0.5 and value 0.65
     #samples = [samples[0], samples[1]]
@@ -31,34 +35,60 @@ def calc_probs_policy_iteration(model, samples, max_iters=1000, tol=1e-5):
     #samples[0][2][0] = [0.6,0.4]
     #samples[1][1][0] = [0.5, 0.5]
     #samples[1][2][0] = [0.8, 0.2]
+    N = len(samples)
+    
+    back_set = calc_reach_sets(model)
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+
+    states_to_update = set()
+    probs = cp.Parameter((num_states,N))
+    prob_init = np.zeros((num_states,N))
+    for reached in model.Labelled_states[model.Labels.index("reached")]:
+        prob_init[reached, :] = 1.0
+        states_to_update.update(back_set[reached])
+    probs.value = prob_init 
     
     pi = cp.Variable((num_states, num_acts))
+    old_pol = cp.Parameter((num_states, num_acts))
     new_probs = cp.Variable((num_states, N))
     worst_case = cp.Variable(num_states)
     objective = cp.Maximize(np.ones((num_states,1)).T@worst_case)
     A = np.ones((num_acts, 1))
     b = np.ones((num_states, 1))
-    old_wc = np.ones(num_states)
     converged=False
+    old_pol.value = np.ones((num_states, num_acts))/num_acts
     for i in range(max_iters):
         constraints = [new_probs <= 1, new_probs >= 0, pi@A == b, pi >= 0]
         # might be more efficient to only check states that will change 
         # (i.e. with a transition to a state that has a changed value for probs)
+        # done...
+        # If still running out of memory we can take it further and update one state at at time...
+
         for k in tqdm(range(N)):
             constraints += [worst_case[s] <= new_probs[s,k] for s in model.States]
-            constraints += [new_probs[s,k] == 
-                         sum([pi[s,a]*sum([samples[k][s_num][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s_num][a_num])])  
-                              for a_num, a in enumerate(model.Enabled_actions[s_num])]) 
-                             for s_num, s in enumerate(model.States)]
+            for s in states_to_update:
+                constraints += [new_probs[s,k] == 
+                         sum([pi[s,a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
+                              for a_num, a in enumerate(model.Enabled_actions[s])]) 
+                             ]
+        for s in model.States:
+            if s not in states_to_update:        
+                constraints += [new_probs[s] == probs[s]]
+                constraints += [pi[s] == old_pol[s]]
+        print("problem construction complete, moving on to solving")
         program = cp.Problem(objective, constraints)
-        result = program.solve()
-        diff = np.linalg.norm(probs.value - new_probs.value, ord=np.inf)
-        print("Infinity norm change at iteration {} is {:.3f}".format(i, diff))
-        if diff <= tol:
+        result = program.solve(ignore_dpp=True, verbose=True)
+        changed_states = np.argwhere(np.any(abs(probs.value-new_probs.value)>=tol, axis=1))
+        states_to_update = set()
+        for s in changed_states:
+            states_to_update.update(back_set[s[0]])
+        if len(states_to_update) == 0:
             converged=True
             break
-        old_wc = worst_case.value
         probs.value = new_probs.value
+        old_pol.value = pi.value
+        print("iteration "+str(i)+" complete")
     # sometimes we find an additional support sample
     num_supports = 0
     support_samples = set()

@@ -85,8 +85,9 @@ def get_model_2():
 
     Test_Model.trans_ids = [[[1],[2]],[[3,4]],[[3,4]],[[3]],[[4]]]
 
-    Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.8, np.eye(2)*0.1)
-    
+    #Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.8, np.eye(2)*0.1)
+    Test_Model.param_sampler = samplers.uniform(2, [0.01, 0.2], [0.5,0.6])
+
     Test_Model.Labels = ["init", "reached"]
     Test_Model.Labelled_states = [[0,1,2,3,4],[3]]
 
