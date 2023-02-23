@@ -48,6 +48,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         prob_init[reached, :] = 1.0
         states_to_update.update(back_set[reached])
     probs.value = prob_init 
+    pol = np.ones((num_states, num_acts))/num_acts
     
     pi = cp.Variable((num_states, num_acts))
     old_pol = cp.Parameter((num_states, num_acts))
@@ -89,6 +90,50 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         probs.value = new_probs.value
         old_pol.value = pi.value
         print("iteration "+str(i)+" complete")
+   
+    import pdb; pdb.set_trace()
+    states_to_update = set()
+    probs = cp.Parameter((num_states,N))
+    prob_init = np.zeros((num_states,N))
+    for reached in model.Labelled_states[model.Labels.index("reached")]:
+        prob_init[reached, :] = 1.0
+        states_to_update.update(back_set[reached])
+    probs.value = prob_init 
+    
+    pol = np.ones((num_states, num_acts))/num_acts
+    pi = cp.Variable(num_acts)
+    new_prob = cp.Variable(N)
+    worst_prob = cp.Variable(1)
+    objective = cp.Maximize(worst_prob)
+    converged=False
+    for i in range(max_iters):
+        next_states_to_update = set()
+        prob_updates = {}
+        for s in states_to_update:
+            constraints = [new_prob <= 1, new_prob >= 0, np.ones(num_acts)@pi == 1, pi >= 0]
+            for k in tqdm(range(N)):
+                constraints += [worst_prob <= new_prob[k]]
+                constraints += [new_prob[k] == 
+                             sum([pi[a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
+                                  for a_num, a in enumerate(model.Enabled_actions[s])]) 
+                                 ]
+            print("problem construction complete, moving on to solving")
+            program = cp.Problem(objective, constraints)
+            result = program.solve(ignore_dpp=True)
+            changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
+            if changed:
+                next_states_to_update.update(back_set[s])
+            prob_updates[s] = new_prob.value
+            pol[s] = pi.value
+        states_to_update = next_states_to_update
+        for s in prob_updates:
+            probs.value[s] = prob_updates[s]
+        if len(states_to_update) == 0:
+            converged=True
+            break
+        print("iteration "+str(i)+" complete")
+    import pdb; pdb.set_trace()
+
     # sometimes we find an additional support sample
     num_supports = 0
     support_samples = set()
