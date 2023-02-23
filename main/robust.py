@@ -3,7 +3,9 @@ import cvxpy as cp
 import Markov.writer as writer
 from PAC.funcs import *
 import itertools
+import logging
 from tqdm import tqdm
+import time
 
 def gen_samples(model, N):
     sampled_trans_probs = []
@@ -48,57 +50,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         prob_init[reached, :] = 1.0
         states_to_update.update(back_set[reached])
     probs.value = prob_init 
-    pol = np.ones((num_states, num_acts))/num_acts
-    
-    pi = cp.Variable((num_states, num_acts))
-    old_pol = cp.Parameter((num_states, num_acts))
-    new_probs = cp.Variable((num_states, N))
-    worst_case = cp.Variable(num_states)
-    objective = cp.Maximize(np.ones((num_states,1)).T@worst_case)
-    A = np.ones((num_acts, 1))
-    b = np.ones((num_states, 1))
-    converged=False
-    old_pol.value = np.ones((num_states, num_acts))/num_acts
-    for i in range(max_iters):
-        constraints = [new_probs <= 1, new_probs >= 0, pi@A == b, pi >= 0]
-        # might be more efficient to only check states that will change 
-        # (i.e. with a transition to a state that has a changed value for probs)
-        # done...
-        # If still running out of memory we can take it further and update one state at at time...
-
-        for k in tqdm(range(N)):
-            constraints += [worst_case[s] <= new_probs[s,k] for s in model.States]
-            for s in states_to_update:
-                constraints += [new_probs[s,k] == 
-                         sum([pi[s,a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
-                              for a_num, a in enumerate(model.Enabled_actions[s])]) 
-                             ]
-        for s in model.States:
-            if s not in states_to_update:        
-                constraints += [new_probs[s] == probs[s]]
-                constraints += [pi[s] == old_pol[s]]
-        print("problem construction complete, moving on to solving")
-        program = cp.Problem(objective, constraints)
-        result = program.solve(ignore_dpp=True, verbose=True)
-        changed_states = np.argwhere(np.any(abs(probs.value-new_probs.value)>=tol, axis=1))
-        states_to_update = set()
-        for s in changed_states:
-            states_to_update.update(back_set[s[0]])
-        if len(states_to_update) == 0:
-            converged=True
-            break
-        probs.value = new_probs.value
-        old_pol.value = pi.value
-        print("iteration "+str(i)+" complete")
-   
-    import pdb; pdb.set_trace()
-    states_to_update = set()
-    probs = cp.Parameter((num_states,N))
-    prob_init = np.zeros((num_states,N))
-    for reached in model.Labelled_states[model.Labels.index("reached")]:
-        prob_init[reached, :] = 1.0
-        states_to_update.update(back_set[reached])
-    probs.value = prob_init 
     
     pol = np.ones((num_states, num_acts))/num_acts
     pi = cp.Variable(num_acts)
@@ -106,23 +57,26 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     worst_prob = cp.Variable(1)
     objective = cp.Maximize(worst_prob)
     converged=False
+    total_time = 0
     for i in range(max_iters):
+        tic = time.perf_counter()
         next_states_to_update = set()
         prob_updates = {}
-        for s in states_to_update:
+        for s in tqdm(states_to_update):
             constraints = [new_prob <= 1, new_prob >= 0, np.ones(num_acts)@pi == 1, pi >= 0]
-            for k in tqdm(range(N)):
+            for k in range(N):
                 constraints += [worst_prob <= new_prob[k]]
                 constraints += [new_prob[k] == 
                              sum([pi[a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
                                   for a_num, a in enumerate(model.Enabled_actions[s])]) 
                                  ]
-            print("problem construction complete, moving on to solving")
+            logging.debug("problem construction complete, moving on to solving")
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
             changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
             if changed:
                 next_states_to_update.update(back_set[s])
+            # Do I have to wait until the end of this iteration to update prob values??
             prob_updates[s] = new_prob.value
             pol[s] = pi.value
         states_to_update = next_states_to_update
@@ -131,7 +85,10 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         if len(states_to_update) == 0:
             converged=True
             break
-        print("iteration "+str(i)+" complete")
+        toc = time.perf_counter()
+        total_time += toc-tic
+        logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
+    logging.info("Entire optimization finished in {:.3f}s".format(total_time))
     import pdb; pdb.set_trace()
 
     # sometimes we find an additional support sample
