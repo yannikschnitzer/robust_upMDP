@@ -2,7 +2,7 @@ from UI.parsers import *
 import Models.test as test
 
 opt_settings = {"model":{"parser":parse_model, 
-                         "args":[["test", "test2", "test3","drone"]], 
+                         "args":[["test", "test2", "test3", "test4","drone"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },

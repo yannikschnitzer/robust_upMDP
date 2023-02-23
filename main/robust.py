@@ -42,7 +42,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
-
+    
     states_to_update = set()
     probs = cp.Parameter((num_states,N))
     prob_init = np.zeros((num_states,N))
@@ -77,17 +77,19 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
             if changed:
                 next_states_to_update.update(back_set[s])
             # Do I have to wait until the end of this iteration to update prob values??
-            prob_updates[s] = new_prob.value
+            #prob_updates[s] = new_prob.value
+            probs.value[s] = new_prob.value
             pol[s] = pi.value
         states_to_update = next_states_to_update
-        for s in prob_updates:
-            probs.value[s] = prob_updates[s]
+        #for s in prob_updates:
+        #    probs.value[s] = prob_updates[s]
         if len(states_to_update) == 0:
             converged=True
             break
         toc = time.perf_counter()
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
+        logging.info("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
     import pdb; pdb.set_trace()
 

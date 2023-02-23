@@ -36,6 +36,8 @@ def parse_model(flag, opts):
         model = test.get_model_2()
     elif model_name == "test3":
         model = test.get_model_3()
+    elif model_name == "test4":
+        model = test.get_model_4()
     elif model_name == "drone":
         prefix = "Models/benchmarks/drone/drone_"
         params, storm_model, props = storm_ui.load_problem(prefix+"model.nm",prefix+"spec.prctl", "none")
