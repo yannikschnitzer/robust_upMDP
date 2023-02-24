@@ -1,3 +1,4 @@
+import logging
 import sys
 import Models.test as test
 import Models.converter as convert
@@ -46,3 +47,9 @@ def parse_model(flag, opts):
 
 def parse_bool(flag):
     return True
+
+def parse_debug(flag):
+    if flag == "-v":
+        logging.basicConfig(level=logging.INFO)
+    elif flag == "-d":
+        logging.basicConfig(level=logging.DEBUG)

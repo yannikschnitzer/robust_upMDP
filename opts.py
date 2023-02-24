@@ -42,4 +42,10 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["--MC_samples"],
                     "default":10000
                     },
+                "debug_level":{
+                    "parser":parse_debug,
+                    "args":[],
+                    "flags":["-v","-d"],
+                    "default":None
+                    },
                 }

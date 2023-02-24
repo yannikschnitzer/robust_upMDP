@@ -79,15 +79,14 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     for i in range(max_iters):
         tic = time.perf_counter()
         next_states_to_update = set()
-        prob_updates = {}
         for k in range(N):
             trans_mat[:,:,k] = samples[:,:,:,k]@probs.value[:,k]
+        logging.info("Completed construction of Q matrix")
         for s in tqdm(states_to_update):
             constraints = [new_prob <= 1, new_prob >= 0, \
                     np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
                     new_prob == pi@trans_mat[s,:,:]]
             
-            logging.debug("problem construction complete, moving on to solving")
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
             changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
@@ -96,13 +95,13 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
             probs.value[s] = new_prob.value
             pol[s] = pi.value
         states_to_update = next_states_to_update
+        logging.info("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
         if len(states_to_update) == 0:
             converged=True
             break
         toc = time.perf_counter()
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
-        logging.debug("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
     import pdb; pdb.set_trace()
 
@@ -111,7 +110,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     support_samples = set()
     for s in range(num_states):
         max_sc = len(model.Enabled_actions[s])
-        found_sc = np.argwhere(probs.value[s] <= worst_case.value[s]+tol/2)
+        found_sc = np.argwhere(probs.value[s] <= np.min(probs.value[s])+tol/2)
         if found_sc.size <= max_sc:
             support_samples.update([int(elem) for elem in found_sc])
     num_supports = len(support_samples)
