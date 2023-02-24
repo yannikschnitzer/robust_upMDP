@@ -63,10 +63,9 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         next_states_to_update = set()
         prob_updates = {}
         for s in tqdm(states_to_update):
-            constraints = [new_prob <= 1, new_prob >= 0, np.ones(num_acts)@pi == 1, pi >= 0]
+            constraints = [new_prob <= 1, new_prob >= 0, \
+                    np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob]
             for k in range(N):
-                constraints += [worst_prob <= new_prob[k]]
-                #[samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])]
                 next_probs = np.zeros((num_states, num_acts))
                 sampled_probs = np.zeros(num_states)
                 for a_num, a in enumerate(model.Enabled_actions[s]):
@@ -75,10 +74,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
                     sampled_probs[next_states] = samples[k][s][a_num]
                 trans_mat = sampled_probs[:,np.newaxis].T@next_probs
                 constraints += [new_prob[k] == trans_mat @ pi]
-                #constraints += [new_prob[k] == 
-                #             sum([pi[a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
-                #                  for a_num, a in enumerate(model.Enabled_actions[s])]) 
-                #                 ]
             logging.debug("problem construction complete, moving on to solving")
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
