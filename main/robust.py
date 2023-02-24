@@ -9,7 +9,7 @@ import time
 
 def gen_samples(model, N):
     sampled_trans_probs = []
-    for i in range(N):
+    for i in tqdm(range(N)):
         sample = model.sample_MDP()
         sampled_trans_probs.append(sample.Transition_probs)
     return sampled_trans_probs
@@ -50,7 +50,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         prob_init[reached, :] = 1.0
         states_to_update.update(back_set[reached])
     probs.value = prob_init 
-    
+
     pol = np.ones((num_states, num_acts))/num_acts
     pi = cp.Variable(num_acts)
     new_prob = cp.Variable(N)
@@ -66,30 +66,35 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
             constraints = [new_prob <= 1, new_prob >= 0, np.ones(num_acts)@pi == 1, pi >= 0]
             for k in range(N):
                 constraints += [worst_prob <= new_prob[k]]
-                constraints += [new_prob[k] == 
-                             sum([pi[a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
-                                  for a_num, a in enumerate(model.Enabled_actions[s])]) 
-                                 ]
+                #[samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])]
+                next_probs = np.zeros((num_states, num_acts))
+                sampled_probs = np.zeros(num_states)
+                for a_num, a in enumerate(model.Enabled_actions[s]):
+                    next_states = model.trans_ids[s][a_num]    
+                    next_probs[next_states,a] = probs.value[next_states, k]
+                    sampled_probs[next_states] = samples[k][s][a_num]
+                trans_mat = sampled_probs[:,np.newaxis].T@next_probs
+                constraints += [new_prob[k] == trans_mat @ pi]
+                #constraints += [new_prob[k] == 
+                #             sum([pi[a]*sum([samples[k][s][a_num][s_prime_num]*probs[s_prime,k] for s_prime_num, s_prime in enumerate(model.trans_ids[s][a_num])])  
+                #                  for a_num, a in enumerate(model.Enabled_actions[s])]) 
+                #                 ]
             logging.debug("problem construction complete, moving on to solving")
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
             changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
             if changed:
                 next_states_to_update.update(back_set[s])
-            # Do I have to wait until the end of this iteration to update prob values??
-            #prob_updates[s] = new_prob.value
             probs.value[s] = new_prob.value
             pol[s] = pi.value
         states_to_update = next_states_to_update
-        #for s in prob_updates:
-        #    probs.value[s] = prob_updates[s]
         if len(states_to_update) == 0:
             converged=True
             break
         toc = time.perf_counter()
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
-        logging.info("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
+        logging.debug("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
     import pdb; pdb.set_trace()
 
