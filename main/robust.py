@@ -79,9 +79,14 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     for i in range(max_iters):
         tic = time.perf_counter()
         next_states_to_update = set()
-        for k in range(N):
-            trans_mat[:,:,k] = samples[:,:,:,k]@probs.value[:,k]
+        n=num_states
+        m=num_acts
+        k=1
+        # this is faster than loop but over allocates... might be able to fix??
+        trans_mat = np.tensordot(samples, probs.value, axes=[[2],[0]])[:,:,:,0]
+        
         logging.info("Completed construction of Q matrix")
+        # This can be done in parallel!!
         for s in tqdm(states_to_update):
             constraints = [new_prob <= 1, new_prob >= 0, \
                     np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
