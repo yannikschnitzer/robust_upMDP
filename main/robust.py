@@ -6,13 +6,33 @@ import itertools
 import logging
 from tqdm import tqdm
 import time
+import sparse
 
 def gen_samples(model, N):
-    sampled_trans_probs = []
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    coords = [[] for i in range(4)]
+    data = []
     for i in tqdm(range(N)):
         sample = model.sample_MDP()
-        sampled_trans_probs.append(sample.Transition_probs)
-    return sampled_trans_probs
+        sample_trans = sample.Transition_probs
+        if N == 2:
+            if i == 0:
+                sample_trans[1][0] = [0.7, 0.3]
+                sample_trans[2][0] = [0.6,0.4]
+            if i == 1:
+                sample_trans[1][0] = [0.5, 0.5]
+                sample_trans[2][0] = [0.8, 0.2]
+        for s in model.States:
+            for a_num, a in enumerate(model.Enabled_actions[s]):
+                for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
+                    coords[0].append(s)
+                    coords[1].append(a)
+                    coords[2].append(s_prime)
+                    coords[3].append(i)
+                    data.append(sample_trans[s][a_num][s_prime_num])
+    sample_mat = sparse.COO(coords, data, shape=(num_states, num_acts, num_states, N))
+    return sample_mat
 
 def calc_reach_sets(model):
     backward_reach = [[] for s in model.States]
@@ -32,13 +52,9 @@ def calc_max_path(backward_reach):
 def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
   
     # test for test 2, should get optimal policy 0.5, 0.5 and value 0.65
-    #samples = [samples[0], samples[1]]
-    #samples[0][1][0] = [0.7, 0.3]
-    #samples[0][2][0] = [0.6,0.4]
-    #samples[1][1][0] = [0.5, 0.5]
-    #samples[1][2][0] = [0.8, 0.2]
-    N = len(samples)
     
+    N = samples.shape[-1]
+   
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -50,6 +66,8 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         prob_init[reached, :] = 1.0
         states_to_update.update(back_set[reached])
     probs.value = prob_init 
+    
+    trans_mat = np.empty((num_states, num_acts, N))
 
     pol = np.ones((num_states, num_acts))/num_acts
     pi = cp.Variable(num_acts)
@@ -62,18 +80,13 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         tic = time.perf_counter()
         next_states_to_update = set()
         prob_updates = {}
+        for k in range(N):
+            trans_mat[:,:,k] = samples[:,:,:,k]@probs.value[:,k]
         for s in tqdm(states_to_update):
             constraints = [new_prob <= 1, new_prob >= 0, \
-                    np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob]
-            for k in range(N):
-                next_probs = np.zeros((num_states, num_acts))
-                sampled_probs = np.zeros(num_states)
-                for a_num, a in enumerate(model.Enabled_actions[s]):
-                    next_states = model.trans_ids[s][a_num]    
-                    next_probs[next_states,a] = probs.value[next_states, k]
-                    sampled_probs[next_states] = samples[k][s][a_num]
-                trans_mat = sampled_probs[:,np.newaxis].T@next_probs
-                constraints += [new_prob[k] == trans_mat @ pi]
+                    np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
+                    new_prob == pi@trans_mat[s,:,:]]
+            
             logging.debug("problem construction complete, moving on to solving")
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
