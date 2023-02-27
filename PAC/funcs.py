@@ -20,17 +20,18 @@ def MC_sampler(model, k, thresh, violation_prob, pol=None):
     return violation_rate
 
 def calc_eps(beta, N, d):
-    eps = betaF.ppf(beta, d, N-d+1)
+    eps = betaF.ppf(1-beta, d, N-d+1)
     return eps
 
 def calc_eta_var_thresh(beta, N):
-    return 1-(1-beta)**(1/N)
+    return calc_eps(beta, N, 1)
+    #return 1-(beta)**(1/N)
 
 def calc_eta_discard(beta, N, discarded):
     if N == discarded:
         return 0
     else:    
-        beta_bar = (1-beta)/N
+        beta_bar = (beta)/N
         d = 1
         k = discarded
         return betaF.ppf(1-beta_bar, k+d, N-(d+k)+1) 
@@ -39,13 +40,12 @@ def calc_eta_fixed_discard(beta, N, k):
     if N == k:
         return 0
     else:    
-        beta_bar = (1-beta)
+        beta_bar = (beta)
         d = 1
         return betaF.ppf(1-beta_bar, k+d, N-(d+k)+1) 
     #return 1-k/N-(np.sqrt(k)/N+((np.sqrt(k)+1)/N)*np.log(1/(1-beta)))
 
 def calc_eps_risk_complexity(beta, N, k):
-    beta = 1 - beta
     alphaL = betaF.ppf(beta, k, N-k+1)
     alphaU = 1-betaF.ppf(beta, N-k+1, k)
 

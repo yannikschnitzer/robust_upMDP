@@ -16,7 +16,7 @@ opt_settings = {"model":{"parser":parse_model,
                     "parser":parse_num,
                     "args":[float,0,1], 
                     "flags":["-beta"],
-                    "default":0.99
+                    "default":1e-5
                     },
                 "lambda":{
                     "parser":parse_num,

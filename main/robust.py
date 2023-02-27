@@ -1,17 +1,21 @@
+from multiprocessing import Pool
+import sys
 import numpy as np
 import cvxpy as cp
 import Markov.writer as writer
 from PAC.funcs import *
 import itertools
+from functools import partial
 import logging
 from tqdm import tqdm
 import time
+import copy
 import sparse
 
 def gen_samples(model, N):
     num_states = len(model.States)
     num_acts = len(model.Actions)
-    coords = [[] for i in range(4)]
+    coords = [[] for i in range(3)]
     data = []
     for i in tqdm(range(N)):
         sample = model.sample_MDP()
@@ -26,12 +30,12 @@ def gen_samples(model, N):
         for s in model.States:
             for a_num, a in enumerate(model.Enabled_actions[s]):
                 for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
-                    coords[0].append(s)
-                    coords[1].append(a)
-                    coords[2].append(s_prime)
-                    coords[3].append(i)
+                    coords[0].append(i*num_states+s)
+                    coords[1].append(i*num_acts+a)
+                    coords[2].append(i*num_states+s_prime)
+                    #coords[3].append(i)
                     data.append(sample_trans[s][a_num][s_prime_num])
-    sample_mat = sparse.COO(coords, data, shape=(num_states, num_acts, num_states, N))
+    sample_mat = sparse.COO(coords, data, shape=(N*num_states, N*num_acts, N*num_states))
     return sample_mat
 
 def calc_reach_sets(model):
@@ -44,20 +48,65 @@ def calc_reach_sets(model):
             backward_reach[succ].append(state)
     return backward_reach
 
-def calc_max_path(backward_reach):
-
-    # not implemented yet
+def calc_max_path(model):
+    start = model.Init_state
+    paths = [[start]]
+    all_paths = [[start]]
+    states_to_check = [start]
+    max_supports = 0
+    goals = model.Labelled_states[model.Labels.index("reached")]
+    for i in range(len(model.States)):
+        prev_paths = paths
+        paths = []
+        next_states_to_check = set()
+        for state in states_to_check:
+            successors = set()
+            for elem in model.trans_ids[state]:
+                successors.update(elem)
+            next_paths = []
+            for succ in successors:
+                for path in prev_paths:
+                    if succ not in path and path[-1] == state:
+                        new_path = path+[succ]
+                        next_paths.append(new_path)
+                        if succ in goals:
+                            path_supports = sum([len(model.Enabled_actions[s]) for s in new_path])
+                            if path_supports > max_supports:
+                                max_supports = path_supports
+            if len(next_paths) > 0:
+                all_paths.append(next_paths)
+            paths += next_paths
+            next_states_to_check.update(successors)
+        if states_to_check == next_states_to_check:
+            break
+        states_to_check = next_states_to_check
+    import pdb; pdb.set_trace()
     return len(backward_reach)
+
+def solve_opt(s, N, num_states, num_acts, trans_mat, probs, tol):
+    pi = cp.Variable(num_acts)
+    new_prob = cp.Variable(N)
+    worst_prob = cp.Variable(1)
+    objective = cp.Maximize(worst_prob)
+    
+    constraints = [new_prob <= 1, new_prob >= 0, \
+            np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
+            new_prob == pi@trans_mat[s,:,:]]
+    
+    program = cp.Problem(objective, constraints)
+    result = program.solve(ignore_dpp=True)
+    changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
+    return changed, new_prob.value
 
 def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
   
     # test for test 2, should get optimal policy 0.5, 0.5 and value 0.65
     
-    N = samples.shape[-1]
    
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
+    N = int(samples.shape[-1]/num_states)
     
     states_to_update = set()
     probs = cp.Parameter((num_states,N))
@@ -83,32 +132,53 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         m=num_acts
         k=1
         # this is faster than loop but over allocates... might be able to fix??
-        trans_mat = np.tensordot(samples, probs.value, axes=[[2],[0]])[:,:,:,0]
-        
-        logging.info("Completed construction of Q matrix")
-        # This can be done in parallel!!
+        #probs_sparse = sparse.COO.from_numpy(probs.value.T.reshape(samples.shape[-1]))
+        #res = sparse.COO.dot(samples, probs_sparse)
+        #trans_mat = np.array([res[j*num_states:(j+1)*num_states, j*num_acts:(j+1)*num_acts].todense()\
+        #                      for j in range(N)])
+        res = samples@probs.value.T.reshape(samples.shape[-1])
+        new_shape = (N, num_states, num_acts)
+        new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
+        trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
+        trans_mat = np.swapaxes(trans_mat.T, 0, 1)
+        mat_time = time.perf_counter() - tic
+
+        logging.info(("Completed construction of Q matrix in {:.3f}s").format(mat_time))
+        #with Pool(len(states_to_update)) as p:
+        #    out = p.map(partial(solve_opt, N=N, num_states=num_states, num_acts=num_acts, trans_mat=trans_mat, probs=probs, tol=tol), list(states_to_update))
+        #    #out = p.starmap(solve_opt, [(s, num_states, num_acts, trans_mat, probs ) for s in states_to_update])
+        #probs.value[list(states_to_update)] = [elem[1] for elem in out]
+        #changed_states = [s for j, s in enumerate(states_to_update) if out[j][0]]
+        #next_states_to_update = set()
+        #for s in changed_states:
+        #    next_states_to_update.update(back_set[s])
+        #states_to_update = next_states_to_update
+        converged=True
         for s in tqdm(states_to_update):
-            constraints = [new_prob <= 1, new_prob >= 0, \
+            constraints = [new_prob <= 1, new_prob >= probs[s], \
                     np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
                     new_prob == pi@trans_mat[s,:,:]]
             
             program = cp.Problem(objective, constraints)
             result = program.solve(ignore_dpp=True)
-            changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
+            if program.status == cp.OPTIMAL:
+                changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
+                probs.value[s] = new_prob.value
+                pol[s] = pi.value
+            else:
+                changed = False
+                print("Found infeasible problem")
             if changed:
                 next_states_to_update.update(back_set[s])
-            probs.value[s] = new_prob.value
-            pol[s] = pi.value
+                converged=False
         states_to_update = next_states_to_update
         logging.info("Current worst case probabilities are {}".format(np.min(probs.value, axis=1)))
-        if len(states_to_update) == 0:
-            converged=True
+        if converged:
             break
         toc = time.perf_counter()
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
-    import pdb; pdb.set_trace()
 
     # sometimes we find an additional support sample
     num_supports = 0
@@ -120,7 +190,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
             support_samples.update([int(elem) for elem in found_sc])
     num_supports = len(support_samples)
     if converged:
-        return probs.value[model.Init_state], pi.value, support_samples, num_supports
+        return probs.value[model.Init_state], pol, support_samples, num_supports
     else:
         return -1, -1, -1, -1
 
@@ -164,7 +234,7 @@ def run_all(args):
     model = args["model"]
     
     a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
-
+    calc_max_path(model)
     a_priori_eps = calc_eps(args["beta"], args["num_samples"], a_priori_max_supports)
     
     print("A priori upper bound on number of support constraints is " + str(a_priori_max_supports))
