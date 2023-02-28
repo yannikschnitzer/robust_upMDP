@@ -13,38 +13,25 @@ import copy
 import sparse
 
 def build_sample_mat(num_states, num_acts, enabled_acts, trans_ids, samples):
+    return sample_mat
+
+def get_batch(model, N):
     coords = [[] for i in range(3)]
     data = []
-    for j, elem in enumerate(samples):
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    for j in range(N):
+        elem = model.sample_MDP().Transition_probs 
         for s in range(num_states):
-            for a_num, a in enumerate(enabled_acts[s]):
-                for s_prime_num, s_prime in enumerate(trans_ids[s][a]):
+            for a_num, a in enumerate(model.Enabled_actions[s]):
+                for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
                     coords[0].append(j*num_states+s)
                     coords[1].append(j*num_acts+a)
                     coords[2].append(j*num_states+s_prime)
                     data.append(elem[s][a_num][s_prime_num])
-    N = len(samples)
     sample_mat = sparse.COO(coords, data, \
                             shape=(N*num_states, N*num_acts, N*num_states))
     return sample_mat
-
-def get_batch(model, N):
-    num_states = len(model.States)
-    num_acts = len(model.Actions)
-    sampled_trans = [model.sample_MDP().Transition_probs for j in range(N)]
-    
-    #for j in range(N):
-    #    sample_trans = sample.Transition_probs
-    #    for s in model.States:
-    #        for a_num, a in enumerate(model.Enabled_actions[s]):
-    #            for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
-    #                coords[0].append(j*num_states+s)
-    #                coords[1].append(j*num_acts+a)
-    #                coords[2].append(j*num_states+s_prime)
-    #                data.append(sample_trans[s][a_num][s_prime_num])
-    #sample_mat = sparse.COO(coords, data, \
-    #                        shape=(N*num_states, N*num_acts, N*num_states))
-    return sampled_trans
 
 def gen_samples(model, N, batch_size):
     num_states = len(model.States)
@@ -53,50 +40,12 @@ def gen_samples(model, N, batch_size):
     samples = []
     sizes = [batch_size for i in range(num_batches)]
     sizes[-1] -= sum(sizes) - N
-    #with Pool(num_batches) as p:
-    #    samples = p.map(partial(get_batch,model), sizes)
-    sampled_trans = []
     for i in tqdm(range(num_batches)):
         start = i*batch_size
         end = min((i+1)*batch_size, N)
         curr_size = end-start
-        sampled_trans.append(get_batch(model, curr_size))
-    builder_func = partial(build_sample_mat, \
-            num_states, \
-            num_acts, \
-            model.Enabled_actions, \
-            model.trans_ids)
-    tic = time.perf_counter()
-    with Pool() as p:
-        samples = p.map(builder_func, sampled_trans)
-    toc = time.perf_counter()
-    import pdb; pdb.set_trace()
-    #for i in tqdm(range(num_batches)):
-    #    start = i*batch_size
-    #    end = min((i+1)*batch_size, N)
-    #    curr_size = end-start
-    #    samples.append(get_batch(model, curr_size))
+        samples.append(get_batch(model, curr_size))
     return samples
-    #for i in tqdm(range(N)):
-    #    sample = model.sample_MDP()
-    #    sample_trans = sample.Transition_probs
-    #    if N == 2:
-    #        if i == 0:
-    #            sample_trans[1][0] = [0.7, 0.3]
-    #            sample_trans[2][0] = [0.6,0.4]
-    #        if i == 1:
-    #            sample_trans[1][0] = [0.5, 0.5]
-    #            sample_trans[2][0] = [0.8, 0.2]
-    #    for s in model.States:
-    #        for a_num, a in enumerate(model.Enabled_actions[s]):
-    #            for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
-    #                coords[0].append(i*num_states+s)
-    #                coords[1].append(i*num_acts+a)
-    #                coords[2].append(i*num_states+s_prime)
-    #                #coords[3].append(i)
-    #                data.append(sample_trans[s][a_num][s_prime_num])
-    #sample_mat = sparse.COO(coords, data, shape=(N*num_states, N*num_acts, N*num_states))
-    #return sample_mat
 
 def calc_reach_sets(model):
     backward_reach = [[] for s in model.States]
@@ -194,7 +143,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
     num_acts = len(model.Actions)
     batch_size = int(samples[0].shape[-1]/num_states)
     N = sum([int(sample.shape[-1]/num_states) for sample in samples])
-    #N = int(samples.shape[-1]/num_states)
     
     states_to_update = set()
     probs = cp.Parameter((num_states,N))
@@ -224,9 +172,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
             start = j*batch_size
             end = min((j+1)*batch_size, N)
             sample_batch = samples[j]
-            #sample_batch = samples[start*num_states:end*num_states, 
-            #                       start*num_acts:end*num_acts,
-            #                       start*num_states:end*num_states]
             prob_batch = probs.value[:, start:end]
             res = sample_batch@prob_batch.T.reshape(sample_batch.shape[-1])
             new_shape = (end-start, num_states, num_acts)
@@ -251,7 +196,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
                 pol[s] = pi.value
             else:
                 changed = False
-                next_states_to_update.update(s)
+                next_states_to_update.add(s)
                 print("Found infeasible problem")
             if changed:
                 next_states_to_update.update(back_set[s])
@@ -264,7 +209,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
-    import pdb; pdb.set_trace()
     check = test_probs(probs.value, samples, pol, tol)
     
     # sometimes we find an additional support sample
