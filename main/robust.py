@@ -12,30 +12,70 @@ import time
 import copy
 import sparse
 
+def build_sample_mat(num_states, num_acts, enabled_acts, trans_ids, samples):
+    coords = [[] for i in range(3)]
+    data = []
+    for j, elem in enumerate(samples):
+        for s in range(num_states):
+            for a_num, a in enumerate(enabled_acts[s]):
+                for s_prime_num, s_prime in enumerate(trans_ids[s][a]):
+                    coords[0].append(j*num_states+s)
+                    coords[1].append(j*num_acts+a)
+                    coords[2].append(j*num_states+s_prime)
+                    data.append(elem[s][a_num][s_prime_num])
+    N = len(samples)
+    sample_mat = sparse.COO(coords, data, \
+                            shape=(N*num_states, N*num_acts, N*num_states))
+    return sample_mat
+
+def get_batch(model, N):
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    sampled_trans = [model.sample_MDP().Transition_probs for j in range(N)]
+    
+    #for j in range(N):
+    #    sample_trans = sample.Transition_probs
+    #    for s in model.States:
+    #        for a_num, a in enumerate(model.Enabled_actions[s]):
+    #            for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
+    #                coords[0].append(j*num_states+s)
+    #                coords[1].append(j*num_acts+a)
+    #                coords[2].append(j*num_states+s_prime)
+    #                data.append(sample_trans[s][a_num][s_prime_num])
+    #sample_mat = sparse.COO(coords, data, \
+    #                        shape=(N*num_states, N*num_acts, N*num_states))
+    return sampled_trans
+
 def gen_samples(model, N, batch_size):
     num_states = len(model.States)
     num_acts = len(model.Actions)
     num_batches = int(np.ceil(N/batch_size))
     samples = []
+    sizes = [batch_size for i in range(num_batches)]
+    sizes[-1] -= sum(sizes) - N
+    #with Pool(num_batches) as p:
+    #    samples = p.map(partial(get_batch,model), sizes)
+    sampled_trans = []
     for i in tqdm(range(num_batches)):
-        coords = [[] for i in range(3)]
-        data = []
         start = i*batch_size
         end = min((i+1)*batch_size, N)
         curr_size = end-start
-        for j in range(curr_size):
-            sample = model.sample_MDP()
-            sample_trans = sample.Transition_probs
-            for s in model.States:
-                for a_num, a in enumerate(model.Enabled_actions[s]):
-                    for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
-                        coords[0].append(j*num_states+s)
-                        coords[1].append(j*num_acts+a)
-                        coords[2].append(j*num_states+s_prime)
-                        data.append(sample_trans[s][a_num][s_prime_num])
-        sample_mat = sparse.COO(coords, data, \
-                                shape=(curr_size*num_states, curr_size*num_acts, curr_size*num_states))
-        samples.append(sample_mat)
+        sampled_trans.append(get_batch(model, curr_size))
+    builder_func = partial(build_sample_mat, \
+            num_states, \
+            num_acts, \
+            model.Enabled_actions, \
+            model.trans_ids)
+    tic = time.perf_counter()
+    with Pool() as p:
+        samples = p.map(builder_func, sampled_trans)
+    toc = time.perf_counter()
+    import pdb; pdb.set_trace()
+    #for i in tqdm(range(num_batches)):
+    #    start = i*batch_size
+    #    end = min((i+1)*batch_size, N)
+    #    curr_size = end-start
+    #    samples.append(get_batch(model, curr_size))
     return samples
     #for i in tqdm(range(N)):
     #    sample = model.sample_MDP()
@@ -121,29 +161,27 @@ def test_probs(probs, samples, pol, tol):
         N = probs.shape[-1]
         num_states = pol.shape[0]
         num_acts = pol.shape[1]
-        batch_size = 150
+        batch_size = int(samples[0].shape[-1]/num_states)
         num_batches = int(np.ceil(N/batch_size))
         trans_mat = np.zeros((num_states, num_acts, N))
         for j in range(num_batches):
             start = j*batch_size
-            end = (j+1)*batch_size
-            if end > N:
-                end = N
-            sample_batch = samples[start*num_states:end*num_states, 
-                                   start*num_acts:end*num_acts,
-                                   start*num_states:end*num_states]
-            prob_batch = probs.value[:, start:end]
+            end = min((j+1)*batch_size, N)
+            sample_batch = samples[j]
+            #sample_batch = samples[start*num_states:end*num_states, 
+            #                       start*num_acts:end*num_acts,
+            #                       start*num_states:end*num_states]
+            prob_batch = probs[:, start:end]
             res = sample_batch@prob_batch.T.reshape(sample_batch.shape[-1])
-            #res = samples@probs.value.T.reshape(samples.shape[-1])
-            #new_shape = (N, num_states, num_acts)
             new_shape = (end-start, num_states, num_acts)
             new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
             batch_trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
             batch_trans_mat = np.swapaxes(batch_trans_mat.T, 0, 1)
             trans_mat[:,:,start:end] = batch_trans_mat
+            trans_mat[:,:,start:end] = batch_trans_mat
         check = True
         for s in range(num_states):
-            curr_check = abs(probs[s,:]-pol[s,:]@trans_mat[s,:,:]) <= tol
+            curr_check = np.linalg.norm(probs[s,:]-pol[s,:]@trans_mat[s,:,:], ord=np.inf) <= tol
             if not curr_check:
                 import pdb; pdb.set_trace()
             check = check and curr_check 
@@ -154,6 +192,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
+    batch_size = int(samples[0].shape[-1]/num_states)
     N = sum([int(sample.shape[-1]/num_states) for sample in samples])
     #N = int(samples.shape[-1]/num_states)
     
@@ -179,7 +218,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
         next_states_to_update = set()
         
         logging.info(("Beginning construction of Q matrix"))
-        batch_size = 150
         num_batches = int(np.ceil(N/batch_size))
         trans_mat = np.zeros((num_states, num_acts, N))
         for j in range(num_batches):
@@ -292,7 +330,7 @@ def run_all(args):
 
     samples = gen_samples(model, args["num_samples"], args["batch_size"])
 
-    probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, samples)
+    probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, samples, tol=args["tol"])
     
     [a_post_eps_L, a_post_eps_U] = \
         calc_eps_risk_complexity(args["beta"], args["num_samples"], a_post_support_num)

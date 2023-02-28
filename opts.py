@@ -54,4 +54,10 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["-v","-d"],
                     "default":None
                     },
+                "tol":{
+                    "parser":parse_num,
+                    "args":[float, 0, 1],
+                    "flags":["--tol"],
+                    "default":1e-3
+                    },
                 }
