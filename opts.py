@@ -12,7 +12,13 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["-N"],
                     "default":100
                     },
-                "beta":{
+                "batch_size":{
+                    "parser":parse_num,
+                    "args":[int,1],
+                    "flags":["--batch"],
+                    "default":150
+                    },
+                    "beta":{
                     "parser":parse_num,
                     "args":[float,0,1], 
                     "flags":["-beta"],
