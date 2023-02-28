@@ -80,7 +80,6 @@ def calc_max_path(model):
         if states_to_check == next_states_to_check:
             break
         states_to_check = next_states_to_check
-    import pdb; pdb.set_trace()
     return len(backward_reach)
 
 def solve_opt(s, N, num_states, num_acts, trans_mat, probs, tol):
@@ -89,7 +88,7 @@ def solve_opt(s, N, num_states, num_acts, trans_mat, probs, tol):
     worst_prob = cp.Variable(1)
     objective = cp.Maximize(worst_prob)
     
-    constraints = [new_prob <= 1, new_prob >= 0, \
+    constraints = [new_prob <= 1, new_prob >= probs[s], \
             np.ones(num_acts)@pi == 1, pi >= 0, worst_prob <= new_prob, \
             new_prob == pi@trans_mat[s,:,:]]
     
@@ -98,10 +97,39 @@ def solve_opt(s, N, num_states, num_acts, trans_mat, probs, tol):
     changed = np.any(abs(probs.value[s]-new_prob.value)>=tol)
     return changed, new_prob.value
 
-def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
-  
-    # test for test 2, should get optimal policy 0.5, 0.5 and value 0.65
-    
+def test_probs(probs, samples, pol, tol):
+        N = probs.shape[-1]
+        num_states = pol.shape[0]
+        num_acts = pol.shape[1]
+        batch_size = 150
+        num_batches = int(np.ceil(N/batch_size))
+        trans_mat = np.zeros((num_states, num_acts, N))
+        for j in range(num_batches):
+            start = j*batch_size
+            end = (j+1)*batch_size
+            if end > N:
+                end = N
+            sample_batch = samples[start*num_states:end*num_states, 
+                                   start*num_acts:end*num_acts,
+                                   start*num_states:end*num_states]
+            prob_batch = probs.value[:, start:end]
+            res = sample_batch@prob_batch.T.reshape(sample_batch.shape[-1])
+            #res = samples@probs.value.T.reshape(samples.shape[-1])
+            #new_shape = (N, num_states, num_acts)
+            new_shape = (end-start, num_states, num_acts)
+            new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
+            batch_trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
+            batch_trans_mat = np.swapaxes(batch_trans_mat.T, 0, 1)
+            trans_mat[:,:,start:end] = batch_trans_mat
+        check = True
+        for s in range(num_states):
+            curr_check = abs(probs[s,:]-pol[s,:]@trans_mat[s,:,:]) <= tol
+            if not curr_check:
+                import pdb; pdb.set_trace()
+            check = check and curr_check 
+        return check
+
+def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
    
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
@@ -128,19 +156,33 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
     for i in range(max_iters):
         tic = time.perf_counter()
         next_states_to_update = set()
-        n=num_states
-        m=num_acts
-        k=1
+        
         # this is faster than loop but over allocates... might be able to fix??
         #probs_sparse = sparse.COO.from_numpy(probs.value.T.reshape(samples.shape[-1]))
         #res = sparse.COO.dot(samples, probs_sparse)
         #trans_mat = np.array([res[j*num_states:(j+1)*num_states, j*num_acts:(j+1)*num_acts].todense()\
         #                      for j in range(N)])
-        res = samples@probs.value.T.reshape(samples.shape[-1])
-        new_shape = (N, num_states, num_acts)
-        new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
-        trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
-        trans_mat = np.swapaxes(trans_mat.T, 0, 1)
+        logging.info(("Beginning construction of Q matrix"))
+        batch_size = 150
+        num_batches = int(np.ceil(N/batch_size))
+        trans_mat = np.zeros((num_states, num_acts, N))
+        for j in range(num_batches):
+            start = j*batch_size
+            end = (j+1)*batch_size
+            if end > N:
+                end = N
+            sample_batch = samples[start*num_states:end*num_states, 
+                                   start*num_acts:end*num_acts,
+                                   start*num_states:end*num_states]
+            prob_batch = probs.value[:, start:end]
+            res = sample_batch@prob_batch.T.reshape(sample_batch.shape[-1])
+            #res = samples@probs.value.T.reshape(samples.shape[-1])
+            #new_shape = (N, num_states, num_acts)
+            new_shape = (end-start, num_states, num_acts)
+            new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
+            batch_trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
+            batch_trans_mat = np.swapaxes(batch_trans_mat.T, 0, 1)
+            trans_mat[:,:,start:end] = batch_trans_mat
         mat_time = time.perf_counter() - tic
 
         logging.info(("Completed construction of Q matrix in {:.3f}s").format(mat_time))
@@ -167,6 +209,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
                 pol[s] = pi.value
             else:
                 changed = False
+                next_states_to_update.update(s)
                 print("Found infeasible problem")
             if changed:
                 next_states_to_update.update(back_set[s])
@@ -179,7 +222,9 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-5):
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
     logging.info("Entire optimization finished in {:.3f}s".format(total_time))
-
+    import pdb; pdb.set_trace()
+    check = test_probs(probs.value, samples, pol, tol)
+    
     # sometimes we find an additional support sample
     num_supports = 0
     support_samples = set()
@@ -234,7 +279,7 @@ def run_all(args):
     model = args["model"]
     
     a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
-    calc_max_path(model)
+    #calc_max_path(model)
     a_priori_eps = calc_eps(args["beta"], args["num_samples"], a_priori_max_supports)
     
     print("A priori upper bound on number of support constraints is " + str(a_priori_max_supports))
