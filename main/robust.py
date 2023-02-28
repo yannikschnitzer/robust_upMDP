@@ -157,11 +157,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
         tic = time.perf_counter()
         next_states_to_update = set()
         
-        # this is faster than loop but over allocates... might be able to fix??
-        #probs_sparse = sparse.COO.from_numpy(probs.value.T.reshape(samples.shape[-1]))
-        #res = sparse.COO.dot(samples, probs_sparse)
-        #trans_mat = np.array([res[j*num_states:(j+1)*num_states, j*num_acts:(j+1)*num_acts].todense()\
-        #                      for j in range(N)])
         logging.info(("Beginning construction of Q matrix"))
         batch_size = 150
         num_batches = int(np.ceil(N/batch_size))
@@ -176,8 +171,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
                                    start*num_states:end*num_states]
             prob_batch = probs.value[:, start:end]
             res = sample_batch@prob_batch.T.reshape(sample_batch.shape[-1])
-            #res = samples@probs.value.T.reshape(samples.shape[-1])
-            #new_shape = (N, num_states, num_acts)
             new_shape = (end-start, num_states, num_acts)
             new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
             batch_trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
@@ -186,15 +179,6 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
         mat_time = time.perf_counter() - tic
 
         logging.info(("Completed construction of Q matrix in {:.3f}s").format(mat_time))
-        #with Pool(len(states_to_update)) as p:
-        #    out = p.map(partial(solve_opt, N=N, num_states=num_states, num_acts=num_acts, trans_mat=trans_mat, probs=probs, tol=tol), list(states_to_update))
-        #    #out = p.starmap(solve_opt, [(s, num_states, num_acts, trans_mat, probs ) for s in states_to_update])
-        #probs.value[list(states_to_update)] = [elem[1] for elem in out]
-        #changed_states = [s for j, s in enumerate(states_to_update) if out[j][0]]
-        #next_states_to_update = set()
-        #for s in changed_states:
-        #    next_states_to_update.update(back_set[s])
-        #states_to_update = next_states_to_update
         converged=True
         for s in tqdm(states_to_update):
             constraints = [new_prob <= 1, new_prob >= probs[s], \
