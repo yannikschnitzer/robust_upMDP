@@ -2,7 +2,7 @@ from UI.parsers import *
 import Models.test as test
 
 opt_settings = {"model":{"parser":parse_model, 
-                         "args":[["test", "test2", "test3", "test4","drone"]], 
+                         "args":[["test", "test2", "test3", "test4","drone", "consensus_2"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },
@@ -28,7 +28,7 @@ opt_settings = {"model":{"parser":parse_model,
                     "parser":parse_num,
                     "args":[float, 0, 1], 
                     "flags":["-lambda"],
-                    "default":0
+                    "default":None
                     },
                 "rho":{
                     "parser":parse_num,
@@ -58,6 +58,6 @@ opt_settings = {"model":{"parser":parse_model,
                     "parser":parse_num,
                     "args":[float, 0, 1],
                     "flags":["--tol"],
-                    "default":1e-3
+                    "default":1e-5
                     },
                 }

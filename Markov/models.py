@@ -14,6 +14,22 @@ class base:
     Name = None
     trans_ids = None
     Formulae = None
+    opt = "max"
+    Enabled_actions = None
+
+    def __init__(self, model=None):
+        if model is not None:
+            self.States = model.States
+            self.Actions = model.Actions
+            self.Transition_probs = model.Transition_probs
+            self.Init_state = model.Init_state
+            self.Labels = model.Labels
+            self.Labelled_states = model.Labelled_states
+            self.Name = model.Name
+            self.trans_ids = model.trans_ids
+            self.Formulae = model.Formulae
+            self.opt = model.opt
+            self.Enabled_actions = model.Enabled_actions
 
 class MC(base):
     """
@@ -60,6 +76,7 @@ class MDP(base):
         fixed_MC.Formulae = self.Formulae
         fixed_MC.Labels = self.Labels
         fixed_MC.Labelled_states = self.Labelled_states
+        fixed_MC.opt = self.opt
 
         return fixed_MC
 
@@ -90,6 +107,7 @@ class pMDP(MDP):
         fixed_MDP.Formulae = self.Formulae
         fixed_MDP.Enabled_actions = self.Enabled_actions
         fixed_MDP.trans_ids = self.trans_ids
+        fixed_MDP.opt = self.opt
 
         return fixed_MDP
 
@@ -106,6 +124,7 @@ class storm_MDP:
     Name = None
     trans_ids = None
     Formulae = None
+    opt = "min"
 
 class storm_upMDP:
 
@@ -121,10 +140,11 @@ class storm_upMDP:
         out.trans_ids = self.trans_ids
         out.States = self.States
         out.Actions = self.Actions
+        out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
         out.Labels = self.Labels
         out.Labelled_states = self.Labelled_states
         out.Formulae = self.Formulae
-        
+        out.opt = self.opt
         return out
 
 

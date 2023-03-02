@@ -36,14 +36,14 @@ class stormpy_io:
         return state_labeling
 
     def _write_transitions(self):
-        if hasattr(self.model, 'Enabled_actions'):
+        if self.model.Enabled_actions is not None:
             builder = stormpy.SparseMatrixBuilder(rows=0, columns=0, entries=0, force_dimensions=False, has_custom_row_grouping=True, row_groups=0)
         else:
             builder = stormpy.SparseMatrixBuilder(rows=0, columns=0, entries=0, force_dimensions=False, has_custom_row_grouping=False)
         choices = 0
         for s in self.model.States:
             self_loop = True
-            if hasattr(self.model, 'Enabled_actions'):
+            if self.model.Enabled_actions is not None:
                 builder.new_row_group(choices)
                 for a in self.model.Enabled_actions[s]:
                     for i, s_prime in enumerate(self.model.trans_ids[s][a]):

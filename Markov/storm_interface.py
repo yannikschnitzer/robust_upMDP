@@ -98,7 +98,7 @@ def load_problem(model_file, property_file, bisimulation_type):
     
     print('\nModel successfully loaded!\n')
     
-    return parameters,model,properties
+    return parameters,model,properties,formula_str
 
 
 def sample_MDP(parameters, model, model_file,

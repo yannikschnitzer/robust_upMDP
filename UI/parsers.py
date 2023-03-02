@@ -41,8 +41,12 @@ def parse_model(flag, opts):
         model = test.get_model_4()
     elif model_name == "drone":
         prefix = "Models/benchmarks/drone/drone_"
-        params, storm_model, props = storm_ui.load_problem(prefix+"model.nm",prefix+"spec.prctl", "none")
-        model = convert.parse(storm_model, params, prefix+"model.nm", props, "uniform")
+        params, storm_model, props, f = storm_ui.load_problem(prefix+"model.nm",prefix+"spec.prctl", "none")
+        model = convert.parse(storm_model, params, prefix+"model.nm", props,f, "uniform")
+    elif model_name == "consensus_2":
+        prefix = "Models/benchmarks/consensus/coin2"
+        params, storm_model, props, f = storm_ui.load_problem(prefix+".pm",prefix+".prctl", "none")
+        model = convert.parse(storm_model, params, prefix+".pm", props, f)
     return model
 
 def parse_bool(flag):

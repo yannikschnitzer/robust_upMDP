@@ -1,7 +1,7 @@
 import Markov.models as Markov
 
 
-def parse(storm_model, params, filename, props, weather= None):
+def parse(storm_model, params, filename, props, f, weather= None):
     model = Markov.storm_upMDP()
     model.model =  storm_model
     model.params = params
@@ -39,9 +39,14 @@ def parse(storm_model, params, filename, props, weather= None):
             state_ids.append(act_ids)
         model.trans_ids.append(state_ids)
         model.Enabled_actions.append(enabled_acts)
-    model.Formulae = [str(prop) for prop in props] 
-   
+    model.Formulae = [f] 
 
-    model.Labels[-1] = 'reached'
-    
+    if 'drone' in filename:
+        model.Labels[-1] = 'reached'
+    else:
+        model.Labels.append("reached")
+        reached_states = set(model.Labelled_states[1]).intersection(model.Labelled_states[2])
+        model.Labelled_states.append(list(reached_states))
+        model.opt = "min"
+
     return model

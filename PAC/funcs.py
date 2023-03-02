@@ -2,18 +2,23 @@ import numpy as np
 from scipy.stats import beta as betaF
 from tqdm import tqdm
 import Markov.writer as writer
+import Markov.models
 
 def MC_sampler(model, k, thresh, violation_prob, pol=None):
     inn_count = 0
     for j in tqdm(range(k)):
-        sample = model.sample_MDP()
+        sample = Markov.models.MDP(model.sample_MDP())
         if pol is not None:
             sample = sample.fix_pol(pol)
         IO = writer.stormpy_io(sample)
         IO.write()
         res, all_res = IO.solve()
-        if res[0] < thresh:
-            inn_count+= 1
+        if model.opt == "max":
+            if res[0] < thresh:
+                inn_count+= 1
+        else:
+            if res[0] > thresh:
+                inn_count += 1
     
     violation_rate = inn_count/k
     

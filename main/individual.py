@@ -19,32 +19,53 @@ def calc_probs(model, N):
     return probs
 
 
-def discard(lambda_val, probs):
-    min_prob = 1
-    discarded=0
-    undiscarded = [p_val for p_val in probs if p_val >= lambda_val]
-    
-    if len(undiscarded)>0:
-        min_prob = min(undiscarded)
+def discard(lambda_val, probs, opt):
+    if lambda_val is None:
+        if opt == "max":
+            opt_prob = min(probs)
+        else:
+            opt_prob = max(probs)
+        discarded = 0
     else:
-        min_prob = 0
-    discarded = len(probs)-len(undiscarded)
-    return min_prob, discarded
+        if opt == "max":
+            undiscarded = [p_val for p_val in probs if p_val >= lambda_val]
+            if len(undiscarded)>0:
+                opt_prob = min(undiscarded)
+            else:
+                opt_prob = 0
+        else:
+            undiscarded = [p_val for p_val in probs if p_val <= lambda_val]
+            if len(undiscarded)>0:
+                opt_prob = max(undiscarded)
+            else:
+                opt_prob = 1
 
-def optimise(rho, probs):
+        discarded = len(probs)-len(undiscarded)
+    return opt_prob, discarded
+
+def optimise(rho, probs, opt):
     N = len(probs)
     x_s = cp.Variable(1+N)
     c = -np.ones((N+1,1))*rho
-    c[0] = 1
-
-    b = np.array([0]+probs)
-    A = np.eye(N+1)
-    A[:, 0] = -1
-    A[0,0] = 1
-    A = -A
+    if opt == "max":
+        c[0] = 1
+        b = np.array([0]+probs)
+        A = np.eye(N+1)
+        A[:, 0] = -1
+        A[0,0] = 1
+        A = -A
+        constraints = [A@x_s <= b, x_s >= 0]
+    else:
+        b = np.array([-1]+probs)
+        A = np.eye(N+1)
+        A[:, 0] = -1
+        #A[0,0] = 1
+        A = -A
+        constraints = [A@x_s >= b, x_s >= 0]
 
     objective = cp.Maximize(c.T@x_s)
-    constraints = [A@x_s <= b, x_s >= 0]
+
+
     prob = cp.Problem(objective, constraints)
     result = prob.solve()
 
@@ -57,12 +78,12 @@ def run_all(args):
     model = args["model"]
     print("Running code for individual optimal policies \n --------------------")
     probs = calc_probs(model, args["num_samples"])
-    min_prob, discarded = discard(args["lambda"], probs)
-    tau, etas = optimise(args["rho"], probs)
+    min_prob, discarded = discard(args["lambda"], probs, model.opt)
+    tau, etas = optimise(args["rho"], probs, model.opt)
     [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
 
     print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
-    if args["lambda"] > 0:
+    if args["lambda"] is not None:
         thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
         print("Discarded {} samples".format(discarded))
     else:
