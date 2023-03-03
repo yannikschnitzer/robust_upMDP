@@ -56,11 +56,12 @@ def optimise(rho, probs, opt):
         A = -A
         constraints = [A@x_s <= b, x_s >= 0]
     else:
+        c[0] = -1
         b = np.array([-1]+probs)
         A = np.eye(N+1)
-        A[:, 0] = -1
-        #A[0,0] = 1
-        A = -A
+        A[:, 0] = 1
+        A[0,0] = -1
+        #A = -A
         constraints = [A@x_s >= b, x_s >= 0]
 
     objective = cp.Maximize(c.T@x_s)
@@ -82,14 +83,14 @@ def run_all(args):
     tau, etas = optimise(args["rho"], probs, model.opt)
     [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
 
-    print("Using results from risk and complexity, new sample will satisfy formula with lower bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
+    print("Using results from risk and complexity, new sample will satisfy formula with bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
     if args["lambda"] is not None:
         thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
         print("Discarded {} samples".format(discarded))
     else:
         thresh = calc_eta_var_thresh(args["beta"], args["num_samples"])
 
-    print(("Upper bound on violation probability for formula with probability at least {:.3f}"+
+    print(("Upper bound on violation probability for formula with probability bounded by {:.3f}"+
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
     if args["MC"]:

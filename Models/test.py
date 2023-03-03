@@ -38,7 +38,7 @@ def get_model():
         ]]
 
     Test_Model.trans_ids = [[[1],[2],[3]],[[4,5]],[[4,5]],[[4,5]],[[4]],[[5]]]
-
+    Test_Model.max_supports = 3
     Test_Model.param_sampler = samplers.gauss(np.array([0.5]), np.array([[0.2]]))
     
     Test_Model.Labels = ["init", "reached"]
@@ -83,6 +83,7 @@ def get_model_2():
             [one]
         ]]
 
+    Test_Model.max_supports = 2
     Test_Model.trans_ids = [[[1],[2]],[[3,4]],[[3,4]],[[3]],[[4]]]
 
     #Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.8, np.eye(2)*0.1)
@@ -134,6 +135,7 @@ def get_model_3():
     Test_Model.trans_ids = [[[1]],[[2,4],[2,4]],[[3,4],[3,4]],[[3]],[[4]]]
 
     Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.85, np.eye(2)*0.1)
+    Test_Model.max_supports = 2
     
     Test_Model.Labels = ["init", "reached"]
     Test_Model.Labelled_states = [[0,1,2,3,4],[3]]

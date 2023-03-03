@@ -86,14 +86,14 @@ class stormpy_io:
             for spec in self.specs:
                 result = stormpy.model_checking(self.mdp, spec)
                 all_res.append([result.at(init) for init in self.mdp.initial_states])
-                res.append(result.at(self.mdp.initial_states[self.model.Init_state]))
+                res.append(result.at(self.mdp.initial_states[0]))
         else: 
             res = []
             all_res = []
             for spec in self.specs:
                 result = stormpy.check_model_sparse(self.mdp, spec)
                 all_res.append([result.at(init) for init in self.mdp.initial_states])
-                res.append(result.at(self.mdp.initial_states[self.model.Init_state]))
+                res.append(result.at(self.mdp.initial_states[0]))
         return res, all_res
 
 class PRISM_io:

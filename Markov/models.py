@@ -124,9 +124,10 @@ class storm_MDP:
     Name = None
     trans_ids = None
     Formulae = None
-    opt = "min"
+    opt = "max"
 
 class storm_upMDP:
+    opt = "max"
 
     def sample_MDP(self):
         sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)

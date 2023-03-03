@@ -178,11 +178,21 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
             states_to_update.update(back_set[reached])
     else:
         prob_init = np.ones((num_states,N))
-        if 'finished' in model.Labels:
-            for deadend in model.Labelled_states[model.Labels.index("finished")]:
-                if deadend not in model.Labelled_states[model.Labels.index("reached")]:
-                    prob_init[deadend, :] = 0.0
-                    states_to_update.update(back_set[deadend])
+        #if 'finished' in model.Labels:
+        #    for deadend in model.Labelled_states[model.Labels.index("finished")]:
+        #        if deadend not in model.Labelled_states[model.Labels.index("reached")]:
+        #            prob_init[deadend, :] = 0.0
+        #            states_to_update.update(back_set[deadend])
+        #else:
+        for state in model.States:
+            deadend = True
+            for trans in model.trans_ids[state]:
+                if len(trans) > 1 or state not in trans:
+                    deadend = False
+            if deadend and state not in model.Labelled_states[model.Labels.index("reached")]:
+                prob_init[state, :] = 0.0
+                states_to_update.update(back_set[state])
+                            
     probs.value = prob_init 
 
     trans_mat = np.empty((num_states, num_acts, N))
@@ -225,7 +235,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
                 enabled = model.Enabled_actions[s]
                 pi_mat = np.zeros(num_acts)
                 pi_mat[enabled] = 1
-                temp = 1/(updates[s]+1)
+                temp = 1/(updates[s]+1)**2
                 if model.opt == "max":
                     constraints = [worst_prob <= new_prob, new_prob >= 0, \
                                    new_prob >= probs[s]-temp, new_prob <= 1]
@@ -235,7 +245,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
                 constraints += [pi_mat@pi == 1, pi >= 0, new_prob == pi@trans_mat[s,:,:]]
                 
                 program = cp.Problem(objective, constraints)
-                result = program.solve(ignore_dpp=True)
+                result = program.solve(ignore_dpp=True, solver=cp.CLARABEL)
                 if program.status == cp.OPTIMAL:
                     changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
                     probs.value[s] = np.maximum(0, np.minimum(new_prob.value,1))
@@ -247,7 +257,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
                 else:
                     converged = False
                     next_states_to_update.add(s)
-                    print("Found infeasible problem")
+                    logging.info("Found infeasible problem")
                     updates[s] -= 1
                     updates[s] = max(0, updates[s])
         states_to_update = next_states_to_update
@@ -256,6 +266,7 @@ def calc_probs_policy_iteration(model, samples, max_iters=10000, tol=1e-3):
         else:
             worst = np.max(probs.value, axis=1)
         logging.info("Current worst case probabilities are {}".format(worst))
+        logging.info("Current worst case init probability is {}".format(worst[model.Init_state]))
         if converged:
             break
         toc = time.perf_counter()
@@ -321,7 +332,8 @@ def run_all(args):
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
     
-    a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
+    #a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
+    a_priori_max_supports = model.max_supports
     #calc_max_path(model)
     a_priori_eps = calc_eps(args["beta"], args["num_samples"], a_priori_max_supports)
     

@@ -8,7 +8,6 @@ def parse(storm_model, params, filename, props, f, weather= None):
     model.filename = filename
     model.weather = weather
     model.props = props
-    model.Init_state = 0
     
     model.Labels = []
     model.Labelled_states = []
@@ -39,14 +38,29 @@ def parse(storm_model, params, filename, props, f, weather= None):
             state_ids.append(act_ids)
         model.trans_ids.append(state_ids)
         model.Enabled_actions.append(enabled_acts)
-    model.Formulae = [f] 
-
-    if 'drone' in filename:
-        model.Labels[-1] = 'reached'
-    else:
+    model.Init_state = model.Labelled_states[model.Labels.index("init")][0]
+    model.Formulae = [f]
+    if 'reached' not in model.Labels:
         model.Labels.append("reached")
-        reached_states = set(model.Labelled_states[1]).intersection(model.Labelled_states[2])
+    if 'drone' in filename:
+        model.Labelled_states.append(
+                model.Labelled_states[
+                    model.Labels.index("(((x > (15 - 2)) & (y > (15 - 2))) & (z > (15 - 2)))")])
+        model.opt = "max"
+        model.Formulae = ["Pmax=? [F \"reached\"]"]
+    elif 'coin' in filename:
+        reached_states = set(model.Labelled_states[model.Labels.index("finished")]).intersection(
+                             model.Labelled_states[model.Labels.index("all_coins_equal_1")])
         model.Labelled_states.append(list(reached_states))
         model.opt = "min"
-
+    elif 'brp_256' in filename:
+        model.Labelled_states.append(model.Labelled_states[model.Labels.index("(s = 5)")])
+    elif 'crowds' in filename:
+        model.Labelled_states.append(model.Labelled_states[model.Labels.index("observe0Greater1")])
+    elif 'nand' in filename:
+        model.opt="min"
+        model.Labelled_states.append(model.Labelled_states[model.Labels.index("target")])
+    model.max_supports = sum([sum([any([not t.value().is_constant() for t in action.transitions])>0
+                        for action in state.actions])
+                        for state in storm_model.states])
     return model
