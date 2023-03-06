@@ -261,7 +261,6 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
                 if changed:
                     next_states_to_update.update(back_set[s])
                     converged=False
-                    updates[s] += 1
         states_to_update = next_states_to_update
         if model.opt == "max":
             worst = np.min(probs.value, axis=1)
