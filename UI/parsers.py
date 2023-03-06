@@ -3,6 +3,7 @@ import sys
 import Models.test as test
 import Models.converter as convert
 import Markov.storm_interface as storm_ui
+from os.path import exists
 
 def get_val(flag):
     ind = sys.argv.index(flag)
@@ -99,3 +100,10 @@ def parse_debug(flag):
     elif flag == "-d":
         logging.basicConfig(level=logging.DEBUG)
 
+def parse_file(flag, load):
+    filename = "store/"+parse_str(flag, None)
+    if load:
+        file_exists = exists(filename)
+        if not file_exists:
+            raise FileNotFoundError
+    return filename

@@ -62,4 +62,23 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["--tol"],
                     "default":1e-5
                     },
+                "sample_load_file":{
+                        "parser":parse_file,
+                        "args":[True],
+                        "flags":["--load"],
+                        "default":None
+                        },
+                "sample_save_file":{
+                        "parser":parse_file,
+                        "args":[False],
+                        "flags":["--save"],
+                        "default":None
+                        },
+                "result_save_file":{
+                        "parser":parse_file,
+                        "args":[False],
+                        "flags":["--save_res"],
+                        "default":None
+                        },
+
                 }

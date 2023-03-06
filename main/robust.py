@@ -12,6 +12,16 @@ from tqdm import tqdm
 import time
 import copy
 import sparse
+import pickle
+
+def load_samples(filename):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    return data[0], data[1]
+
+def save_data(filename, data):
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f)
 
 def build_sample_mat(num_states, num_acts, enabled_acts, trans_ids, samples):
     return sample_mat
@@ -134,42 +144,7 @@ def test_pol(model, base, samples, pol, probs, tol):
                 import pdb; pdb.set_trace()
             j += 1
 
-def test_probs(probs, base, samples, pol, tol):
-    N = probs.shape[-1]
-    num_states = pol.shape[0]
-    num_acts = pol.shape[1]
-    batch_size = int(samples[0].shape[-1]/num_states)
-    num_batches = int(np.ceil(N/batch_size))
-    trans_mat = np.zeros((num_states, num_acts, N))
-    for j in range(num_batches):
-        start = j*batch_size
-        end = min((j+1)*batch_size, N)
-        sample_batch = samples[j]
-        #sample_batch = samples[start*num_states:end*num_states, 
-        #                       start*num_acts:end*num_acts,
-        #                       start*num_states:end*num_states]
-        prob_batch = probs[:, start:end]
-        indexer = np.zeros((curr_size, curr_size, curr_size))
-        indexer[np.diag_indices(curr_size,ndim=3)] = 1
-        base_mat = np.kron(indexer, base)
-        sample_mat = sample_batch + base_mat
-        prob_batch = probs.value[:, start:end]
-        res = sample_mat@prob_batch.T.reshape(sample_mat.shape[-1])
-        new_shape = (end-start, num_states, num_acts)
-        new_strides = (num_states*res.strides[0]+num_acts*res.strides[1], res.strides[0], res.strides[1])
-        batch_trans_mat = np.lib.stride_tricks.as_strided(res, new_shape, new_strides)
-        batch_trans_mat = np.swapaxes(batch_trans_mat.T, 0, 1)
-        trans_mat[:,:,start:end] = batch_trans_mat
-        trans_mat[:,:,start:end] = batch_trans_mat
-    check = True
-    for s in range(num_states):
-        curr_check = np.linalg.norm(probs[s,:]-pol[s,:]@trans_mat[s,:,:], ord=np.inf) <= tol
-        check = check and curr_check 
-    return check
-
 def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3):
-   
-
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -207,7 +182,6 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
         objective = cp.Minimize(worst_prob)
     converged=False
     total_time = 0
-    updates = [0 for s in model.States]
     for i in range(max_iters):
         tic = time.perf_counter()
         next_states_to_update = set()
@@ -235,6 +209,7 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
         mat_time = time.perf_counter() - tic
 
         logging.info(("Completed construction of Q matrix in {:.3f}s").format(mat_time))
+        logging.info("Optimizing over {} states".format(len(states_to_update)))
         converged=True
         #for s in tqdm(states_to_update):
         for s in states_to_update:
@@ -246,56 +221,44 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
                     changed = np.any(abs(probs.value[s]-new_p)>=tol) 
                     probs.value[s] = new_p
                 else:
-                    any_paramed = any([any(trans) for trans in model.paramed[s]])
                     enabled = model.Enabled_actions[s]
-                    mins = set()
-                    for a in enabled:
-                        curr_min = np.argmin(trans_mat[s,a,:])
-                        mins.add(curr_min)
-                        for a_other in enabled:
-                            if a_other != a:
-                                mins.update((
-                                    np.argwhere(trans_mat[s,a_other,:] 
-                                                > trans_mat[s,a_other,curr_min]).flatten().tolist()))
-                    print(len(mins))
-                    if len(mins) == 1:
-                        min_sample = mins.pop()
-                        best_act = np.argmax(trans_mat[s,:,min_sample])
-                        pol[s] = np.zeros(num_acts)
-                        pol[s][best_act] = 1
-                        new_p = trans_mat[s, best_act, :]
-                        changed = np.any(abs(probs.value[s]-new_p)>=tol) 
-                        probs.value[s] = new_p
+                    pi_mat = np.zeros(num_acts)
+                    pi_mat[enabled] = 1
+                    if model.opt == "max":
+                        constraints = [worst_prob <= new_prob, new_prob >= probs[s], 
+                                       new_prob >= 0, \
+                                        new_prob <= 1]
                     else:
-                        pi_mat = np.zeros(num_acts)
-                        pi_mat[enabled] = 1
-                        temp = 1/(updates[s]+1)**2
-                        if model.opt == "max":
-                            constraints = [worst_prob <= new_prob, new_prob >= 0, \
-                                           new_prob >= probs[s]-temp, new_prob <= 1]
-                        else:
-                            constraints = [worst_prob >= new_prob, \
-                                           new_prob <= probs[s]+temp, new_prob <= 1,new_prob >= 0 ]
-                        constraints += [pi_mat@pi == 1, pi >= 0, new_prob == pi@trans_mat[s,:,:]]
-                        
+                        constraints = [worst_prob >= new_prob, \
+                                       new_prob <= probs[s], \
+                                       new_prob <= 1,new_prob >= 0 ]
+                    constraints += [pi_mat@pi == 1, pi >= 0, new_prob == pi@trans_mat[s,:,:]]
+                    
+                    program = cp.Problem(objective, constraints)
+                    try:
+                        result = program.solve(ignore_dpp=True, solver=cp.CLARABEL)
+                        opt_failed = program.status != cp.OPTIMAL
+                    except:
+                        opt_failed = True
+                    if not opt_failed:
+                        changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
+                        probs.value[s] = np.maximum(0, np.minimum(new_prob.value,1))
+                        pol[s] = np.maximum(np.minimum(pi.value, 1), 0)
+                    else:
+                        constraints.pop(1)
+                        logging.info("Found infeasible problem, resolving")
                         program = cp.Problem(objective, constraints)
-                        try:
-                            result = program.solve(ignore_dpp=True, solver=cp.CLARABEL)
-                            opt_failed = program.status != cp.OPTIMAL
-                        except:
-                            opt_failed = True
-                        if not opt_failed:
+                        result = program.solve(ignore_dpp=True, solver=cp.CLARABEL)
+                        if program.status != cp.OPTIMAL:
+                            import pdb; pdb.set_trace()
+                        else:
                             changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
                             probs.value[s] = np.maximum(0, np.minimum(new_prob.value,1))
                             pol[s] = np.maximum(np.minimum(pi.value, 1), 0)
-                        else:
-                            changed = False
-                            converged = False
-                            next_states_to_update.add(s)
-                            logging.info("Found infeasible problem")
-                            updates[s] -= 1
-                            updates[s] = max(0, updates[s])
-                if changed: # or not updates[s]:
+                        #changed = False
+                        #converged = False
+                        #next_states_to_update.add(s)
+                if changed:
                     next_states_to_update.update(back_set[s])
                     converged=False
                     updates[s] += 1
@@ -332,41 +295,6 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
     else:
         return -1, -1, -1, -1
 
-def discard(lambda_val, probs):
-    min_prob = 1
-    discarded=0
-    undiscarded = [p_val for p_val in probs if p_val > lambda_val]
-
-    if len(undiscarded)>0:
-        min_prob = min(undiscarded)
-    else:
-        min_prob = lambda_val
-    discarded = len(probs)-len(undiscarded)
-
-    return min_prob, discarded
-
-def with_relaxation(rho, probs):
-    N = len(probs)
-    x_s = cp.Variable(1+N)
-    c = -np.ones((N+1,1))*rho
-    c[0] = 1
-
-    b = np.array([0]+probs)
-    A = np.eye(N+1)
-    A[:, 0] = -1
-    A[0,0] = 1
-    A = -A
-
-    objective = cp.Maximize(c.T@x_s)
-    constraints = [A@x_s <= b, x_s >= 0]
-    prob = cp.Problem(objective, constraints)
-    result = prob.solve()
-
-    etas = x_s.value[1:]
-    tau = x_s.value[0]
-    
-    return tau, etas
-
 def run_all(args):
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
@@ -380,10 +308,18 @@ def run_all(args):
 
     print("A priori bound on violation probability is {:.3f} with confidence {:.3f}".format(a_priori_eps, args["beta"]))
 
-    base, samples = gen_samples(model, args["num_samples"], args["batch_size"])
-
+    if args["sample_load_file"] is not None:
+        base, samples = load_samples(args["sample_load_file"])
+    else:
+        base, samples = gen_samples(model, args["num_samples"], args["batch_size"])
+    if args["sample_save_file"] is not None:
+        save_data(args["sample_save_file"], (base, samples))
+    
     probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, base, samples, tol=args["tol"])
     
+    if args["result_save_file"] is not None:
+        save_data(args["result_save_file"], {"probs":probs, "pol":pol, "supports":supports})
+
     [a_post_eps_L, a_post_eps_U] = \
         calc_eps_risk_complexity(args["beta"], args["num_samples"], a_post_support_num)
     
@@ -416,7 +352,7 @@ def test_support_num(args):
         samples = gen_samples(model, args["num_samples"], args["batch_size"])
 
         probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, samples)
-        
+         
         print("Calculated supports: " + str(supports))
         actual_supports = []
         for i, sample in enumerate(tqdm(samples)):

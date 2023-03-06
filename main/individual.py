@@ -7,7 +7,7 @@ def calc_probs(model, N):
     probs = []
     min_prob = 1
     discarded = 0
-    for i in range(N):
+    for i in tqdm(range(N)):
         sample = model.sample_MDP()
         
         #IO = writer.PRISM_io(sample)
