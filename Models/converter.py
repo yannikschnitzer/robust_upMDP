@@ -60,7 +60,11 @@ def parse(storm_model, params, filename, props, f, weather= None):
     elif 'nand' in filename:
         model.opt="min"
         model.Labelled_states.append(model.Labelled_states[model.Labels.index("target")])
-    model.max_supports = sum([sum([any([not t.value().is_constant() for t in action.transitions])>0
+    
+    model.paramed = [[[not t.value().is_constant() for t in action.transitions]
+                       for action in state.actions]
+                       for state in storm_model.states]
+    model.max_supports = sum([sum([any([not t.value().is_constant() for t in action.transitions])
                         for action in state.actions])
                         for state in storm_model.states])
     return model

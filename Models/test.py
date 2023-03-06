@@ -38,6 +38,12 @@ def get_model():
         ]]
 
     Test_Model.trans_ids = [[[1],[2],[3]],[[4,5]],[[4,5]],[[4,5]],[[4]],[[5]]]
+    Test_Model.paramed = [[[False],[False],[False]],
+                     [[True, True]],
+                     [[False, False]], 
+                     [[True,True]], 
+                     [[False]],
+                     [[False]]]
     Test_Model.max_supports = 3
     Test_Model.param_sampler = samplers.gauss(np.array([0.5]), np.array([[0.2]]))
     
@@ -83,6 +89,11 @@ def get_model_2():
             [one]
         ]]
 
+    Test_Model.paramed = [[[False],[False]],
+                     [[True, True]],
+                     [[True,True]], 
+                     [[False]],
+                     [[False]]]
     Test_Model.max_supports = 2
     Test_Model.trans_ids = [[[1],[2]],[[3,4]],[[3,4]],[[3]],[[4]]]
 
@@ -131,6 +142,11 @@ def get_model_3():
         [
             [one]
         ]]
+    Test_Model.paramed = [[[False]],
+                     [[False, False],[True, True]],
+                     [[False, False],[True,True]], 
+                     [[False]],
+                     [[False]]]
 
     Test_Model.trans_ids = [[[1]],[[2,4],[2,4]],[[3,4],[3,4]],[[3]],[[4]]]
 
@@ -181,6 +197,11 @@ def get_model_4():
         ]]
 
     Test_Model.trans_ids = [[[1],[2]],[[3,4]],[[3,4],[1,4]],[[3]],[[4]]]
+    Test_Model.paramed = [[[False],[False]],
+                     [[True, True]],
+                     [[True,True],[True,True]], 
+                     [[False]],
+                     [[False]]]
 
     #Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.8, np.eye(2)*0.1)
     #Test_Model.param_sampler = samplers.uniform(2, [0.01, 0.2], [0.5,0.6])
