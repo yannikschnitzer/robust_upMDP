@@ -249,7 +249,7 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
                         logging.info("Found infeasible problem, resolving")
                         program = cp.Problem(objective, constraints)
                         result = program.solve(ignore_dpp=True, solver=cp.CLARABEL)
-                        if program.status != cp.OPTIMAL:
+                        if program.status != cp.OPTIMAL and program.status != cp.OPTIMAL_INACCURATE:
                             import pdb; pdb.set_trace()
                         else:
                             changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
@@ -281,23 +281,37 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
     num_supports = 0
     support_samples = set()
     for s in range(num_states):
-        max_sc = len(model.Enabled_actions[s])
-        if model.opt == "max":
-            found_sc = np.argwhere(probs.value[s] <= np.min(probs.value[s])+tol)
-        else:
-            found_sc = np.argwhere(probs.value[s] >= np.max(probs.value[s])-tol)
-        if found_sc.size <= max_sc:
-            support_samples.update([int(elem) for elem in found_sc])
+        if True:
+        #if not any([any(elem) for elem in model.paramed[s]]):
+        #if any([any(elem) for elem in model.paramed[s]]):
+            #max_sc = sum([any(elem) for elem in model.paramed[s]])
+            max_sc = len(model.Enabled_actions[s])
+            if model.opt == "max":
+                found_sc = np.argwhere(probs.value[s] <= np.min(probs.value[s])+tol)
+            else:
+                found_sc = np.argwhere(probs.value[s] >= np.max(probs.value[s])-tol)
+            if found_sc.size <= max_sc:
+                support_samples.update([int(elem) for elem in found_sc])
+            else:
+                sc_list = found_sc.T.tolist()[0]
+                for i in range(max_sc):
+                    sc_vals = probs.value[s,sc_list]
+                    if model.opt=="max":
+                        worst_ind = np.argmin(sc_vals)
+                    else:
+                        worst_ind = np.argmax(sc_vals)
+                    next_sc = sc_list.pop(worst_ind)
+                    support_samples.add(next_sc)
     num_supports = len(support_samples)
     if converged:
-        return probs.value[model.Init_state], pol, support_samples, num_supports
+        return probs.value[model.Init_state], pol, support_samples, num_supports, probs.value
     else:
-        return -1, -1, -1, -1
+        return -1, -1, -1, -1, -1
 
 def run_all(args):
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
-    
+    test_support_num(args)
     #a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
     a_priori_max_supports = model.max_supports
     #calc_max_path(model)
@@ -314,7 +328,7 @@ def run_all(args):
     if args["sample_save_file"] is not None:
         save_data(args["sample_save_file"], (base, samples))
     
-    probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, base, samples, tol=args["tol"])
+    probs, pol, supports, a_post_support_num, all_p  = calc_probs_policy_iteration(model, base, samples, tol=args["tol"])
     
     if args["result_save_file"] is not None:
         save_data(args["result_save_file"], {"probs":probs, "pol":pol, "supports":supports})
@@ -347,20 +361,63 @@ def run_all(args):
 
 def test_support_num(args):
     model = args["model"]
-    for i in range(100):
-        samples = gen_samples(model, args["num_samples"], args["batch_size"])
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    for i in range(10):
+        base, samples = gen_samples(model, args["num_samples"], args["batch_size"])
 
-        probs, pol, supports, a_post_support_num  = calc_probs_policy_iteration(model, samples)
+        probs, pol, supports, a_post_support_num, all_p = calc_probs_policy_iteration(model, base, samples)
          
         print("Calculated supports: " + str(supports))
         actual_supports = []
-        for i, sample in enumerate(tqdm(samples)):
-                samples.pop(i)
-                test_probs, test_pol, _, _ = calc_probs_policy_iteration(model, samples)
-                if abs(min(probs) - min(test_probs)) >= 0.01:
-                    actual_supports.append(i)
-                samples.insert(i, sample)
+        #for j in tqdm(range(args["num_samples"])):
+        for j in range(args["num_samples"]):
+            samples_new = remove_sample(j, samples, num_states, num_acts)
+            test_probs, test_pol, _, _, all_p_test = calc_probs_policy_iteration(model, base, samples_new)
+            if model.opt == "max":
+                gap = abs(min(probs) - min(test_probs))
+            else:
+                gap = abs(max(probs) - max(test_probs))
+            if gap >= 1e-5:
+                actual_supports.append(j)
+            #    if j not in supports:
+            #        import pdb; pdb.set_trace()
+            #elif j in supports:
+            #    import pdb; pdb.set_trace()
         print("Emprical supports: " + str(actual_supports))
-        if len(actual_supports) > a_post_support_num:
-            print("ERROR")
+        if len(actual_supports) > model.max_supports:
+            print("ERROR, a priori max sc was wrong!!!")
             import pdb; pdb.set_trace()
+        for sc in actual_supports:
+            if sc not in supports:
+                print("ERROR, found an empirical SC not in a posteriori support set")
+                import pdb; pdb.set_trace()
+
+def remove_sample(pos, samples, num_states, num_acts):
+    max_sample = 0
+    new_samples = copy.copy(samples)
+    for batch_id, batch in enumerate(samples):
+        batch_size = int(batch.shape[0]/num_states)
+        max_sample += batch_size
+        if max_sample > pos:
+            ind_samples = [batch[i*num_states:(i+1)*num_states, 
+                                   i*num_acts:(i+1)*num_acts,
+                                   i*num_states:(i+1)*num_states] for i in range(batch_size)]
+            batch_pos = pos - (max_sample - batch_size)
+            ind_samples.pop(batch_pos)
+            data = []
+            coords = [[] for i in range(3)]
+            for j, ind in enumerate(ind_samples):
+                data += ind.data.tolist()
+                ind_coords = ind.coords.tolist()
+                ind_coords = [[elem+j*num_states for elem in ind_coords[0]],
+                              [elem+j*num_acts for elem in ind_coords[1]],
+                              [elem+j*num_states for elem in ind_coords[2]]]
+                coords[0] += ind_coords[0]
+                coords[1] += ind_coords[1]
+                coords[2] += ind_coords[2]
+            batch_mat = sparse.COO(coords, data, shape=((batch_size-1)*num_states,
+                                                         (batch_size-1)*num_acts,
+                                                         (batch_size-1)*num_states))
+            new_samples[batch_id] = batch_mat
+            return new_samples
