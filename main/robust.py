@@ -13,6 +13,7 @@ import time
 import copy
 import sparse
 import pickle
+from scipy.spatial import ConvexHull
 
 def load_samples(filename):
     with open(filename, 'rb') as f:
@@ -140,8 +141,12 @@ def test_pol(model, base, samples, pol, probs, tol):
             IO = writer.stormpy_io(test_MC)
             IO.write()
             res, all_res = IO.solve()
-            if abs(probs[model.Init_state, j]-res) > tol:
-                import pdb; pdb.set_trace()
+            if model.opt == "max":
+                if res-probs[model.Init_state, j] > tol:
+                    import pdb; pdb.set_trace()
+            else:
+                if probs[model.Init_state, j]-res > tol:
+                    import pdb; pdb.set_trace()
             j += 1
 
 def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3):
@@ -175,11 +180,10 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
     pol = np.ones((num_states, num_acts))/num_acts
     pi = cp.Variable(num_acts)
     new_prob = cp.Variable(N)
-    worst_prob = cp.Variable(1)
     if model.opt == "max":
-        objective = cp.Maximize(worst_prob)
+        objective = cp.Minimize(cp.norm(1-new_prob,'inf'))#worst_prob)
     else:
-        objective = cp.Minimize(worst_prob)
+        objective = cp.Minimize(cp.norm(new_prob,'inf'))
     converged=False
     total_time = 0
     for i in range(max_iters):
@@ -224,13 +228,42 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
                     enabled = model.Enabled_actions[s]
                     pi_mat = np.zeros(num_acts)
                     pi_mat[enabled] = 1
+                    variable_a = []
+                    for a in enabled:
+                        if not np.all(trans_mat[s,a,:]==trans_mat[s,a,0]):
+                            for a_prime in variable_a:
+                                if  np.linalg.norm(trans_mat[s,a,:]-trans_mat[s,a_prime,:],np.inf) < tol:
+                                    break
+                            variable_a.append(a)
+                    if len(variable_a) > 1:
+                        hull = ConvexHull(trans_mat[s,variable_a,:].T)
+                        points = hull.vertices
+                    else:
+                        points = np.array([np.argmin(trans_mat[s,variable_a,:]),\
+                                  np.argmax(trans_mat[s,variable_a,:])])
+                    new_trans = trans_mat[s,:,points].T
+                    test_new_prob = cp.Variable(points.size)
                     if model.opt == "max":
-                        constraints = [worst_prob <= new_prob, new_prob >= probs[s], 
+                        test_cons = [test_new_prob >= probs[s,points],
+                                     test_new_prob >= 0,
+                                     test_new_prob <= 1]
+                        test_obj = cp.Minimize(cp.norm(1-test_new_prob, 'inf'))
+                    else:
+                        test_cons = [test_new_prob <= probs[s,points],
+                                     test_new_prob >= 0,
+                                     test_new_prob <= 1]
+                        test_obj = cp.Minimize(cp.norm(test_new_prob, 'inf'))
+                    test_cons += [pi_mat@pi == 1, pi >= 0, test_new_prob == pi@new_trans[:,:]]
+                    test_program = cp.Problem(test_obj, test_cons)
+                    test_result = test_program.solve(ignore_dpp=True, solver=cp.CLARABEL)
+                    test_pi = pi.value
+                    
+                    if model.opt == "max":
+                        constraints = [new_prob >= probs[s], 
                                        new_prob >= 0, \
                                         new_prob <= 1]
                     else:
-                        constraints = [worst_prob >= new_prob, \
-                                       new_prob <= probs[s], \
+                        constraints = [new_prob <= probs[s], \
                                        new_prob <= 1,new_prob >= 0 ]
                     constraints += [pi_mat@pi == 1, pi >= 0, new_prob == pi@trans_mat[s,:,:]]
                     
@@ -241,6 +274,8 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
                     except:
                         opt_failed = True
                     if not opt_failed:
+                        if abs(result-test_result) >= tol:
+                            import pdb; pdb.set_trace()
                         changed = np.any(abs(probs.value[s]-new_prob.value)>=tol) 
                         probs.value[s] = np.maximum(0, np.minimum(new_prob.value,1))
                         pol[s] = np.maximum(np.minimum(pi.value, 1), 0)
@@ -277,7 +312,9 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
     test_pol(model, base, samples, pol, probs.value, tol)
     print("Policy verified with tolerance " + str(tol*50))
     
-    # sometimes we find an additional support sample
+    # We very often find extra supports
+    # sometimes to take us over a priori number for small tests
+    # actual supports are always smaller than priori
     num_supports = 0
     support_samples = set()
     for s in range(num_states):
@@ -311,7 +348,7 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3)
 def run_all(args):
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
-    test_support_num(args)
+    #test_support_num(args)
     #a_priori_max_supports = sum([len(acts) for acts in model.Enabled_actions])
     a_priori_max_supports = model.max_supports
     #calc_max_path(model)
@@ -378,7 +415,7 @@ def test_support_num(args):
                 gap = abs(min(probs) - min(test_probs))
             else:
                 gap = abs(max(probs) - max(test_probs))
-            if gap >= 1e-5:
+            if gap >= 1e-4:
                 actual_supports.append(j)
             #    if j not in supports:
             #        import pdb; pdb.set_trace()
