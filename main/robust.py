@@ -23,6 +23,11 @@ def load_samples(filename):
         data = pickle.load(f)
     return data[0], data[1]
 
+def load_data(filename):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
 def save_data(filename, data):
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
@@ -112,10 +117,10 @@ def test_pol(model, base, samples, pol, probs, tol):
             IO.write()
             res, all_res = IO.solve()
             if model.opt == "max":
-                if probs[model.Init_state, j]-res > tol:
+                if min(probs[model.Init_state, :]-res) > tol:
                     import pdb; pdb.set_trace()
             else:
-                if res-probs[model.Init_state, j] > tol:
+                if res-max(probs[model.Init_state, :]) > tol:
                     import pdb; pdb.set_trace()
             j += 1
 
@@ -299,7 +304,11 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
         for s, elem in zip(states_to_update, result):
             pol[s] = (pol[s]*(j-1)+ elem[1][s])/j
             probs.value[s] = (probs.value[s]*(j-1)+elem[0].value[s])/j
-            if np.linalg.norm(probs.value[s] - elem[0].value[s], np.inf) > tol:
+            if model.opt == 'max':
+                changed = abs(min(probs.value[s])-min(elem[0].value[s]))>tol
+            else:
+                changed = abs(max(probs.value[s])-max(elem[0].value[s]))>tol
+            if changed:
                 #if elem[-1]:
                 next_states_to_update.update(back_set[s])
                 converged=False
@@ -374,10 +383,13 @@ def run_all(args):
         base, samples = gen_samples(model, args["num_samples"], args["batch_size"])
     if args["sample_save_file"] is not None:
         save_data(args["sample_save_file"], (base, samples))
+    
+    if args["prob_load_file"] is not None:
+        warm_probs = load_data(args["prob_load_file"])
     num_states = len(model.States)
     N = sum([int(sample.shape[-1]/num_states) for sample in samples])
     
-    probs, pol, supports, a_post_support_num, all_p  = calc_probs_policy_iteration(model, base, samples, savefile=args["result_save_file"], tol=args["tol"])
+    probs, pol, supports, a_post_support_num, all_p  = calc_probs_policy_iteration(model, base, samples, savefile=args["result_save_file"], tol=args["tol"], init_probs=warm_probs)
     
     if args["result_save_file"] is not None:
         save_data(args["result_save_file"], {"probs":probs, "pol":pol, "supports":supports})

@@ -80,5 +80,10 @@ opt_settings = {"model":{"parser":parse_model,
                         "flags":["--save_res"],
                         "default":None
                         },
-
+                "prob_load_file":{
+                        "parser":parse_file,
+                        "args":[True],
+                        "flags":["--load_res"],
+                        "default":None
+                        },
                 }
