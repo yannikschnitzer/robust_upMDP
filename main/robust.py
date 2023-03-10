@@ -163,12 +163,12 @@ def single_solve(probs, pol, trans_mat, tol, reached_states, enabled, num_acts, 
             pi = cp.Variable(num_acts)
             hull_new_prob = cp.Variable(points.size)
             if opt == "max":
-                cons = [hull_new_prob >= probs[s,points],
+                cons = [#hull_new_prob >= probs[s,points],
                              hull_new_prob >= 0,
                              hull_new_prob <= 1]
                 obj = cp.Minimize(cp.norm(1-hull_new_prob, 'inf'))
             else:
-                cons = [hull_new_prob <= probs[s,points],
+                cons = [#hull_new_prob <= probs[s,points],
                              hull_new_prob >= 0,
                              hull_new_prob <= 1]
                 obj = cp.Minimize(cp.norm(hull_new_prob, 'inf'))
@@ -297,9 +297,10 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
         for elem in out:
             result += elem
         for s, elem in zip(states_to_update, result):
-            pol[s] = elem[1][s]
-            probs.value[s] = elem[0].value[s]
-            if elem[-1]:
+            pol[s] = (pol[s]*(j-1)+ elem[1][s])/j
+            probs.value[s] = (probs.value[s]*(j-1)+elem[0].value[s])/j
+            if np.linalg.norm(probs.value[s] - elem[0].value[s], np.inf) > tol:
+                #if elem[-1]:
                 next_states_to_update.update(back_set[s])
                 converged=False
         states_to_update = next_states_to_update
