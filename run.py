@@ -5,7 +5,7 @@ import Markov.writer as writer
 from UI.get_args import run as get_args
 from PAC.funcs import *
 from main.individual import run_all
-from main.robust import run_all as robust_run
+from main.robust2 import run_all as robust_run
 import logging
 
 def main():

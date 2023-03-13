@@ -39,6 +39,15 @@ def get_batch(model, N):
     num_acts = len(model.Actions)
     for j in range(N):
         elem = model.sample_MDP().Transition_probs 
+        if N == 2:
+            if j == 0:
+                elem[1][0] = [0.01, 0.99]
+                elem[2][0] = [0.4, 0.6]
+                elem[2][1] = [0.9, 0.1]
+            else:
+                elem[1][0] = [1.0, 0.0]
+                elem[2][0] = [0.8, 0.2]
+                elem[2][1] = [0.3, 0.7]
         for s in range(num_states):
             for a_num, a in enumerate(model.Enabled_actions[s]):
                 for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
@@ -96,18 +105,24 @@ def calc_reach_sets(model):
             backward_reach[succ].append(state)
     return backward_reach
 
-def test_pol(model, base, samples, pol, probs, tol):
-    tol *= 50
+def test_pol(model, base, samples, pol):
+    tic = time.perf_counter()
     test_MDP = Markov.models.MDP(model.sample_MDP())
     num_states = len(model.States)
     num_acts = len(model.Actions)
     j = 0
-    for batch in samples:
+    true_probs = []
+    if model.opt == "max":
+        wc = 1
+    else:
+        wc = 0
+    for ind, batch in enumerate(samples):
+        logging.info("Running through batch {} of {}".format(ind+1,len(samples)))
         batch_size = int(batch.shape[0]/num_states)
         mat_batch = [batch[i*num_states:(i+1)*num_states,
                            i*num_acts:(i+1)*num_acts,
                            i*num_states:(i+1)*num_states]+base for i in range(batch_size)]
-        for sample in mat_batch:
+        for sample in tqdm(mat_batch):
             for s in model.States:
                 for a_num, a in enumerate(model.Enabled_actions[s]):
                     for s_prime_num, s_prime in enumerate(model.trans_ids[s][a]):
@@ -117,15 +132,21 @@ def test_pol(model, base, samples, pol, probs, tol):
             IO.write()
             res, all_res = IO.solve()
             if model.opt == "max":
-                if min(probs[model.Init_state, :]-res) > tol:
-                    import pdb; pdb.set_trace()
+                if wc>res[0]:
+                    wc = res[0]
             else:
-                if res-max(probs[model.Init_state, :]) > tol:
-                    import pdb; pdb.set_trace()
+                if wc<res[0]:
+                    wc = res[0]
+            true_probs.append(all_res[0])
             j += 1
+    toc = time.perf_counter()
+    print("Time taken for model checking: {:.3f}s".format(toc-tic))
+    true_probs = np.array(true_probs)
+    return wc, true_probs
 
 def single_solve(probs, pol, trans_mat, tol, reached_states, enabled, num_acts, num_states, opt, s):
     changed = False
+    N = probs.shape[1]
     if s not in reached_states:#model.Labelled_states[model.Labels.index("reached")]:
         if len(enabled[s]) == 1:
             act = enabled[s][0]
@@ -157,7 +178,7 @@ def single_solve(probs, pol, trans_mat, tol, reached_states, enabled, num_acts, 
                     points = hull.vertices
                 except:
                     print("Convex hull error")
-                    points = np.linspace(0,N-1, N)
+                    points = np.linspace(0,N-1, N, dtype=int)
             else:
                 if len(variable_a) == 0:
                     points = np.array([0])
@@ -222,6 +243,7 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
         save_freq = 10
     else:
         save_freq = max_iters
+    check_freq = 10
     back_set = calc_reach_sets(model)
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -230,29 +252,35 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
     states_to_update = set()
     just_updated = set()
     probs = cp.Parameter((num_states,N))
-    if init_probs is None:
-        if model.opt == "max":
-            prob_init = np.zeros((num_states,N))
-            for reached in model.Labelled_states[model.Labels.index("reached")]:
-                prob_init[reached, :] = 1.0
-                states_to_update.update(back_set[reached])
-        else:
-            prob_init = np.ones((num_states,N))
-            for state in model.States:
-                deadend = True
-                for trans in model.trans_ids[state]:
-                    if len(trans) > 1 or state not in trans:
-                        deadend = False
-                if deadend and state not in model.Labelled_states[model.Labels.index("reached")]:
-                    prob_init[state, :] = 0.0
-                    states_to_update.update(back_set[state])
-    else:
-        prob_init = init_probs
-        states_to_update = model.States
-    probs.value = prob_init 
-
-    pol = np.ones((num_states, num_acts))/num_acts
+    #if init_probs is None:
+    #    if model.opt == "max":
+    #        prob_init = np.zeros((num_states,N))
+    #        for reached in model.Labelled_states[model.Labels.index("reached")]:
+    #            prob_init[reached, :] = 1.0
+    #            states_to_update.update(back_set[reached])
+    #    else:
+    #        prob_init = np.ones((num_states,N))
+    #        for state in model.States:
+    #            deadend = True
+    #            for trans in model.trans_ids[state]:
+    #                if len(trans) > 1 or state not in trans:
+    #                    deadend = False
+    #            if deadend and state not in model.Labelled_states[model.Labels.index("reached")]:
+    #                prob_init[state, :] = 0.0
+    #                states_to_update.update(back_set[state])
+    #else:
+    #    prob_init = init_probs
+    #    states_to_update = model.States
     
+    pol = np.zeros((num_states, num_acts))
+    for s in model.States:
+        for a in model.Enabled_actions[s]:
+            pol[s,a] = 1/len(model.Enabled_actions[s])
+    wc, true_probs = test_pol(model, base, samples, pol)
+    
+    probs.value = true_probs.T 
+    states_to_update = model.States
+    old_pol = np.copy(pol)
     converged=False
     total_time = 0
     num_batches = int(np.ceil(N/batch_size))
@@ -262,6 +290,7 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
     else:
         trans_mat = np.ones((num_states, num_acts, N))
     
+    updates = [0 for s in model.States]
     for i in range(max_iters):
         tic = time.perf_counter()
         next_states_to_update = set()
@@ -302,34 +331,47 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
         for elem in out:
             result += elem
         for s, elem in zip(states_to_update, result):
-            pol[s] = (pol[s]*(j-1)+ elem[1][s])/j
-            probs.value[s] = (probs.value[s]*(j-1)+elem[0].value[s])/j
+            # this doesn't work....
+            # Could check convergence of the policy instead maybe????
+            pol[s] = (pol[s]*(updates[s])+ elem[1][s])/(updates[s]+1)
             if model.opt == 'max':
-                changed = abs(min(probs.value[s])-min(elem[0].value[s]))>tol
+                changed = min(elem[0].value[s])-min(probs.value[s])>tol
             else:
-                changed = abs(max(probs.value[s])-max(elem[0].value[s]))>tol
+                changed = max(probs.value[s])-max(elem[0].value[s])>tol
+            changed = changed or not updates[s]
             if changed:
+                #pol[s] = elem[1][s]
+                #probs.value[s] = (probs.value[s]*(num_updates)+elem[0].value[s])/(num_updates+1)
+                updates[s] += 1
                 #if elem[-1]:
                 next_states_to_update.update(back_set[s])
                 converged=False
+            probs.value[s] = pol[s]@trans_mat[s,:,:]#elem[0].value[s]
         states_to_update = next_states_to_update
         if model.opt == "max":
             worst = np.min(probs.value, axis=1)
         else:
             worst = np.max(probs.value, axis=1)
+        logging.info("Policy change {:.3f}".format(np.linalg.norm(old_pol-pol)))
+        old_pol = np.copy(pol)
         logging.info("Current worst case probabilities are {}".format(worst))
         logging.info("Current worst case init probability is {}".format(worst[model.Init_state]))
         if (i+1)%save_freq == 0:
             logging.info("Storing current probability value")
             save_data(savefile, probs.value)
+        if (i+1)%check_freq == 0:
+            wc, true_probs = test_pol(model, base, samples, pol)
+            probs.value = true_probs.T 
         if converged:
             break
         toc = time.perf_counter()
         total_time += toc-tic
         logging.info("iteration {} completed in {:.3f}s".format(i, toc-tic))
     print("Entire optimization finished in {:.3f}s".format(total_time))
-    test_pol(model, base, samples, pol, probs.value, tol)
-    print("Policy verified with tolerance " + str(tol*50))
+    wc, _ = test_pol(model, base, samples, pol)
+    print("Worst case probability found to be {:.3f}".format(wc))
+    import pdb; pdb.set_trace()
+    #print("Policy verified with tolerance " + str(tol*50))
     
     # We very often find extra supports
     # sometimes to take us over a priori number for small tests
@@ -359,8 +401,9 @@ def calc_probs_policy_iteration(model, base, samples, max_iters=10000, tol=1e-3,
                     next_sc = sc_list.pop(worst_ind)
                     support_samples.add(next_sc)
     num_supports = len(support_samples)
+    import pdb; pdb.set_trace()
     if converged:
-        return probs.value[model.Init_state], pol, support_samples, num_supports, probs.value
+        return wc,pol, support_samples, num_supports, probs.value
     else:
         return -1, -1, -1, -1, -1
 
@@ -386,13 +429,15 @@ def run_all(args):
     
     if args["prob_load_file"] is not None:
         warm_probs = load_data(args["prob_load_file"])
+    else:
+        warm_probs = None
     num_states = len(model.States)
     N = sum([int(sample.shape[-1]/num_states) for sample in samples])
     
-    probs, pol, supports, a_post_support_num, all_p  = calc_probs_policy_iteration(model, base, samples, savefile=args["result_save_file"], tol=args["tol"], init_probs=warm_probs)
+    wc, pol, supports, a_post_support_num, all_p  = calc_probs_policy_iteration(model, base, samples, savefile=args["result_save_file"], tol=args["tol"], init_probs=warm_probs)
     
     if args["result_save_file"] is not None:
-        save_data(args["result_save_file"], {"probs":probs, "pol":pol, "supports":supports})
+        save_data(args["result_save_file"], {"worst": wc, "probs":all_p, "pol":pol, "supports":supports})
 
     [a_post_eps_L, a_post_eps_U] = \
         calc_eps_risk_complexity(args["beta"], N, a_post_support_num)
@@ -402,12 +447,7 @@ def run_all(args):
     print("A posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
           .format(a_post_eps_L, a_post_eps_U, args["beta"]))
 
-    if model.opt == "max":
-        opt_prob = min(probs)
-    else:
-        opt_prob = max(probs)
-
-    print("Optimal satisfaction probability is found to be {:.3f}".format(opt_prob))
+    print("Optimal satisfaction probability is found to be {:.3f}".format(wc))
 
     if pol.size < 50:
         print("Calculated robust policy is:")

@@ -42,6 +42,8 @@ def parse_model(flag, opts):
         model = test.get_model_4()
     elif model_name == "test5":
         model = test.get_model_5()
+    elif model_name == "test6":
+        model = test.get_model_6()
     else:
         wind = None
         if model_name == "drone":

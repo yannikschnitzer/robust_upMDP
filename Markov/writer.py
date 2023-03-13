@@ -85,14 +85,14 @@ class stormpy_io:
             all_res = []
             for spec in self.specs:
                 result = stormpy.model_checking(self.mdp, spec)
-                all_res.append([result.at(init) for init in self.mdp.initial_states])
+                all_res.append([result.at(state) for state in self.model.States])
                 res.append(result.at(self.mdp.initial_states[0]))
         else: 
             res = []
             all_res = []
             for spec in self.specs:
                 result = stormpy.check_model_sparse(self.mdp, spec)
-                all_res.append([result.at(init) for init in self.mdp.initial_states])
+                all_res.append([result.at(state) for state in self.model.States])
                 res.append(result.at(self.mdp.initial_states[0]))
         return res, all_res
 
