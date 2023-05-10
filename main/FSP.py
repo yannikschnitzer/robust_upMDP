@@ -37,14 +37,21 @@ def get_samples(model, N):
     num_states = len(model.States)
     num_acts = len(model.Actions)
     for j in range(N):
-        samples.append(model.sample_MDP().Transition_probs) 
+        samples.append(model.param_sampler()) 
     if N == 2:
-        samples[0][1][0] = [0.01, 0.99]
-        samples[0][2][0] = [0.4, 0.6]
-        samples[0][2][1] = [0.9, 0.1]
-        samples[1][1][0] = [1.0, 0.0]
-        samples[1][2][0] = [0.8, 0.2]
-        samples[1][2][1] = [0.3, 0.7]
+        samples[0][0] = 0.01
+        samples[0][1] = 0.4
+        samples[0][2] = 0.9
+        
+        samples[1][0] = 1.0
+        samples[1][1] = 0.8
+        samples[1][2] = 0.3
+        #samples[0][1][0] = [0.01, 0.99]
+        #samples[0][2][0] = [0.4, 0.6]
+        #samples[0][2][1] = [0.9, 0.1]
+        #samples[1][1][0] = [1.0, 0.0]
+        #samples[1][2][0] = [0.8, 0.2]
+        #samples[1][2][1] = [0.3, 0.7]
     return samples
 
 def calc_reach_sets(model):
@@ -59,7 +66,7 @@ def calc_reach_sets(model):
 
 def test_pol(model, samples, pol=None):
     tic = time.perf_counter_ns()
-    test_MDP = Markov.models.MDP(model.sample_MDP()) # this is slow for drone - find a better way
+    #test_MDP = Markov.models.MDP(model.sample_MDP()) # this is slow for drone - find a better way
     num_states = len(model.States)
     num_acts = len(model.Actions)
     j = 0
@@ -71,7 +78,8 @@ def test_pol(model, samples, pol=None):
         wc = 0
     toc = time.perf_counter_ns()
     for ind, sample in enumerate(samples):
-        test_MDP.Transition_probs = sample
+        #test_MDP.Transition_probs = sample
+        test_MDP = model.fix_params(sample)
         if pol is not None:
             test_model = test_MDP.fix_pol(pol)
         else:
@@ -94,75 +102,85 @@ def test_pol(model, samples, pol=None):
     true_probs = np.array(true_probs)
     return wc, true_probs, pols
 
-def solve_subgrad(samples, model):
-    grad_dec = False
-    avging = True
+def solve_FSP(samples, model):
 
     num_states = len(model.States)
     num_acts = len(model.Actions)
+    num_samples = len(samples)
+    
     pol = np.zeros((num_states, num_acts))
     for s in model.States:
         for a in model.Enabled_actions[s]:
             pol[s,a] = 1/len(model.Enabled_actions[s])
+    
+    adv_pol = np.ones((num_samples,1))/num_samples
 
     projected = cp.Variable(num_acts)
     point = cp.Parameter(num_acts)
 
     obj = cp.Minimize(cp.norm(projected-point))
-
-    for i in tqdm(range(500)):
+    
+    sum_step = 0
+    wc_hist = []
+    for i in tqdm(range(5000)):
         wc, true_probs, _ = test_pol(model, samples, pol)
         step = 1/(i+1)
         #step = 0.1
-        step = 0.1
+        sum_step += step
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        new_adv = np.copy(adv_pol)
+        new_adv *= 1-(step/sum_step)
+        new_adv[worst] += step/sum_step
+
         if worst.size == 1:
             worst = worst[0][0]
         else:
             import pdb; pdb.set_trace()
-        if avging:
-            best_worst_pol = test_pol(model, [samples[worst]])[2][0]
-            new_pol = ((pol*(i))+best_worst_pol)/(i+1)
-            pol = new_pol
-        elif grad_dec:
-            grad = np.zeros_like(pol)
-            for s in model.States:
-                if len(model.Enabled_actions[s]) > 1:
-                    for a in model.Enabled_actions[s]:
-                        grad_finder = np.copy(pol)
-                        grad_finder[s] = 0
-                        grad_finder[s,a] = 1
-                        grad[s,a] = test_pol(model, [samples[worst]], grad_finder)[0]
-            pol += step*grad
+        weighted_samples = [sample*weight for sample, weight in zip(samples, adv_pol)]
+        avg_samples = sum(weighted_samples) 
+
+        import pdb; pdb.set_trace()
         
-        for s in model.States:
-            if len(model.Enabled_actions[s]) <= 1:
-                pass
-            elif len(model.Enabled_actions[s]) == 2:
-                act_0 = model.Enabled_actions[s][0]
-                act_1 = model.Enabled_actions[s][1]
-                diff = pol[s,act_0]-pol[s,act_1]
-                if diff > 1:
-                    pol[s,act_0] = 1
-                    pol[s,act_1] = 0
-                elif diff < -1:
-                    pol[s, act_0] = 0
-                    pol[s, act_1] = 1
-                else:
-                    pol[s,act_0] = (1+diff)/2
-                    pol[s,act_1] = (1-diff)/2
-            else:
-                cons = [cp.norm(projected,1) <= 1, projected >= 0]
-                for a in range(num_acts):
-                    if a not in model.Enabled_actions[s]:
-                        cons += [projected[a] == 0]
-                point.value = pol[s]
-                prob = cp.Problem(obj, cons)
-                res = prob.solve()
-                pol[s] = projected.value
-        print(worst)
+        best_res = test_pol(model, [avg_samples])[2][0]
+        
+        new_pol = (1-(step/sum_step))*pol+(step/sum_step)*best_res
+        
+        sum_step += step
+
+        pol = np.copy(new_pol)
+        adv_pol = np.copy(new_adv)
+        #for s in model.States:
+        #    if len(model.Enabled_actions[s]) <= 1:
+        #        pass
+        #    elif len(model.Enabled_actions[s]) == 2:
+        #        act_0 = model.Enabled_actions[s][0]
+        #        act_1 = model.Enabled_actions[s][1]
+        #        diff = pol[s,act_0]-pol[s,act_1]
+        #        if diff > 1:
+        #            pol[s,act_0] = 1
+        #            pol[s,act_1] = 0
+        #        elif diff < -1:
+        #            pol[s, act_0] = 0
+        #            pol[s, act_1] = 1
+        #        else:
+        #            pol[s,act_0] = (1+diff)/2
+        #            pol[s,act_1] = (1-diff)/2
+        #    else:
+        #        cons = [cp.norm(projected,1) <= 1, projected >= 0]
+        #        for a in range(num_acts):
+        #            if a not in model.Enabled_actions[s]:
+        #                cons += [projected[a] == 0]
+        #        point.value = pol[s]
+        #        prob = cp.Problem(obj, cons)
+        #        res = prob.solve()
+        #        pol[s] = projected.value
+        print(adv_pol)
         print(pol)
         print(wc)
+        wc_hist.append(wc)
+    import matplotlib.pyplot as plt
+    plt.plot(wc_hist)
+    plt.show()
     import pdb; pdb.set_trace()
         #grad = 
 
@@ -192,7 +210,7 @@ def run_all(args):
         warm_probs = None
     num_states = len(model.States)
    
-    solve_subgrad(samples, model)
+    solve_FSP(samples, model)
     return 0
     if args["result_save_file"] is not None:
         save_data(args["result_save_file"], {"worst": wc, "probs":all_p, "pol":pol, "supports":supports})

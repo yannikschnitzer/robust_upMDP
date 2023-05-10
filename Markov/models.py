@@ -108,6 +108,7 @@ class pMDP(MDP):
         fixed_MDP.Enabled_actions = self.Enabled_actions
         fixed_MDP.trans_ids = self.trans_ids
         fixed_MDP.opt = self.opt
+        fixed_MDP.params = params
 
         return fixed_MDP
 

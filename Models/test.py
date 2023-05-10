@@ -91,7 +91,7 @@ def get_model_2():
 
     Test_Model.paramed = [[[False],[False]],
                      [[True, True]],
-                     [[True,True]], 
+                     [[True, True]], 
                      [[False]],
                      [[False]]]
     Test_Model.max_supports = 2

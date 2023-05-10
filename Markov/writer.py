@@ -84,17 +84,33 @@ class stormpy_io:
             res = []
             all_res = []
             for spec in self.specs:
-                result = stormpy.model_checking(self.mdp, spec)
+                result = stormpy.model_checking(self.mdp, spec, extract_scheduler=True)
+                if self.model.Actions is not None:
+                    pol = np.zeros((len(self.model.States), len(self.model.Actions)))
+                    for s_num, s in enumerate(self.mdp.states):
+                        choice = result.scheduler.get_choice(s)
+                        act = choice.get_deterministic_choice()
+                        pol[s_num, act]  = 1
+                else:
+                    pol = None
                 all_res.append([result.at(state) for state in self.model.States])
                 res.append(result.at(self.mdp.initial_states[0]))
         else: 
             res = []
             all_res = []
             for spec in self.specs:
-                result = stormpy.check_model_sparse(self.mdp, spec)
+                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=True)
+                if self.model.Actions is not None:
+                    pol = np.zeros((len(self.model.States), len(self.model.Actions)))
+                    for s_num, s in enumerate(self.mdp.states):
+                        choice = result.scheduler.get_choice(s)
+                        act = choice.get_deterministic_choice()
+                        pol[s_num, act]  = 1
+                else:
+                    pol = None
                 all_res.append([result.at(state) for state in self.model.States])
                 res.append(result.at(self.mdp.initial_states[0]))
-        return res, all_res
+        return res, all_res, pol
 
 class PRISM_io:
     """
