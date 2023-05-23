@@ -39,6 +39,10 @@ def get_samples(model, N):
     for j in range(N):
         samples.append(model.param_sampler()) 
     if N == 2:
+        #samples[0][0] = 0.7
+        #samples[0][1] = 0.6
+        #samples[1][0] = 0.6
+        #samples[1][1] = 0.8
         samples[0][0] = 0.01
         samples[0][1] = 0.4
         samples[0][2] = 0.9
@@ -46,12 +50,7 @@ def get_samples(model, N):
         samples[1][0] = 1.0
         samples[1][1] = 0.8
         samples[1][2] = 0.3
-        #samples[0][1][0] = [0.01, 0.99]
-        #samples[0][2][0] = [0.4, 0.6]
-        #samples[0][2][1] = [0.9, 0.1]
-        #samples[1][1][0] = [1.0, 0.0]
-        #samples[1][2][0] = [0.8, 0.2]
-        #samples[1][2][1] = [0.3, 0.7]
+    
     return samples
 
 def calc_reach_sets(model):
@@ -98,9 +97,89 @@ def test_pol(model, samples, pol=None):
     tac = time.perf_counter_ns()
     time_for_mdp_sample = ((toc-tic))
     avg_time_for_solving = ((tac-toc))
-    print("sampling {:.3f}ns, solving {:.3f}ns".format(time_for_mdp_sample, avg_time_for_solving))
+    #print("sampling {:.3f}ns, solving {:.3f}ns".format(time_for_mdp_sample, avg_time_for_solving))
     true_probs = np.array(true_probs)
     return wc, true_probs, pols
+
+def converge_pol(adv, samples, model):
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    num_samples = len(samples)
+    
+    pol = np.zeros((num_states, num_acts))
+    for s in model.States:
+        for a in model.Enabled_actions[s]:
+            pol[s,a] = 1/len(model.Enabled_actions[s])
+    sum_step = 0
+    for i in tqdm(range(100)):
+        step = 1
+        sum_step += step
+        ind = np.random.choice(num_samples, p=adv.flatten())
+        curr_best = test_pol(model, [samples[ind]])[2][0]
+        
+        new_pol = (1-(step/sum_step))*pol+(step/sum_step)*curr_best
+        pol = np.copy(new_pol)
+    return pol
+
+def enumerator(samples, model):
+    best_res_set = []
+    best_res_list = test_pol(model, samples)[2]
+    for best_res in best_res_list:
+        # could work out every possible pure policy for the model instead??
+        match = False
+        for elem in best_res_set:
+            if np.all(elem == best_res):
+                match = True
+                break
+        if not match:
+            best_res_set.append(best_res)
+    payoffs = np.zeros((len(samples),len(best_res_set)))
+    for i, sample in enumerate(samples):
+        for j, best_res in enumerate(best_res_set):
+            payoffs[i,j] = test_pol(model, [sample], best_res)[0]
+    non_domed_brs = list(range(len(best_res_set)))
+    #non_domed_brs = []
+    #for i in range(len(best_res_set)):
+    #    if model.opt == "max":
+    #        test_arr = np.all(payoffs[:,i][:,np.newaxis] > payoffs, axis=0)
+    #    else:
+    #        test_arr = np.all(payoffs[:,i][:,np.newaxis] < payoffs, axis=0)
+    #    test_arr[i] = False
+    #    if not np.any(test_arr):
+    #        # i was dominated, this should never happen if we enumerate BRs of samples, since each pol should be a BR for at least 1
+    #        non_domed_brs.append(i)
+    non_domed_samples = []
+    for i in range(len(samples)):
+        if model.opt == "max":
+            test_arr = np.all(payoffs[i,:][np.newaxis,:] > payoffs, axis=1)
+        else:
+            test_arr = np.all(payoffs[i,:][np.newaxis,:] < payoffs, axis=1)
+        test_arr[i] = False
+        if not np.any(test_arr):
+            non_domed_samples.append(i)
+    non_domed_payoffs = payoffs[non_domed_samples, :][:, non_domed_brs]
+    best = 0
+    combs = list(itertools.combinations(non_domed_samples, len(non_domed_brs)))
+    for elem in tqdm(combs):
+        test_non = elem
+        test_non_domed_payoffs = payoffs[test_non, :][:, non_domed_brs]
+        br_mixer = np.linalg.inv(test_non_domed_payoffs)@np.ones((len(non_domed_brs),1))
+        br_mixer /= np.sum(br_mixer)
+        br_pol = np.zeros_like(best_res)
+        for i, elem in enumerate(non_domed_brs):
+            br_pol += br_mixer[i]*best_res_set[elem]
+        res = test_pol(model, samples, br_pol)[0]
+        if res > best:
+            best = res
+            best_pol = np.copy(br_pol)
+    #br_mixer = np.linalg.pinv(non_domed_payoffs)@np.ones((len(non_domed_samples),1))
+    #br_mixer /= np.sum(br_mixer)
+    #br_pol = np.zeros_like(best_res)
+    #for i, elem in enumerate(non_domed_brs):
+    #    br_pol += br_mixer[i]*best_res_set[elem]
+    
+    print(best)
+    print(best_pol)
 
 def solve_FSP(samples, model):
 
@@ -122,24 +201,27 @@ def solve_FSP(samples, model):
     
     sum_step = 0
     wc_hist = []
-    for i in tqdm(range(5000)):
+    for i in tqdm(range(100)):
         wc, true_probs, _ = test_pol(model, samples, pol)
+        #print(true_probs[:,0])
+        #if i > 1 and wc > max(wc_hist):
+        #    import pdb; pdb.set_trace()
         step = 1/(i+1)
-        #step = 0.1
+        step = 1
         sum_step += step
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
         new_adv = np.copy(adv_pol)
         new_adv *= 1-(step/sum_step)
         new_adv[worst] += step/sum_step
 
+        #best_res = converge_pol(adv_pol, samples, model)
         if worst.size == 1:
             worst = worst[0][0]
         else:
             import pdb; pdb.set_trace()
+        
         weighted_samples = [sample*weight for sample, weight in zip(samples, adv_pol)]
         avg_samples = sum(weighted_samples) 
-
-        import pdb; pdb.set_trace()
         
         best_res = test_pol(model, [avg_samples])[2][0]
         
@@ -174,10 +256,12 @@ def solve_FSP(samples, model):
         #        prob = cp.Problem(obj, cons)
         #        res = prob.solve()
         #        pol[s] = projected.value
-        print(adv_pol)
-        print(pol)
-        print(wc)
+        #print(adv_pol)
+        #print(pol)
+        #print(wc)
         wc_hist.append(wc)
+    print(max(wc_hist))
+    print(pol)
     import matplotlib.pyplot as plt
     plt.plot(wc_hist)
     plt.show()
@@ -209,7 +293,8 @@ def run_all(args):
     else:
         warm_probs = None
     num_states = len(model.States)
-   
+  
+    enumerator(samples, model)
     solve_FSP(samples, model)
     return 0
     if args["result_save_file"] is not None:

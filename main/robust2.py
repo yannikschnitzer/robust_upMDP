@@ -109,7 +109,7 @@ def solve_subgrad(samples, model):
     point = cp.Parameter(num_acts)
 
     obj = cp.Minimize(cp.norm(projected-point))
-
+    wc_hist = []
     for i in tqdm(range(500)):
         wc, true_probs, _ = test_pol(model, samples, pol)
         step = 1/(i+1)
@@ -163,6 +163,10 @@ def solve_subgrad(samples, model):
         print(worst)
         print(pol)
         print(wc)
+        wc_hist.append(wc)
+    import matplotlib.pyplot as plt
+    plt.plot(wc_hist)
+    plt.show()
     import pdb; pdb.set_trace()
         #grad = 
 
