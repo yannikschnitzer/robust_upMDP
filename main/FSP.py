@@ -112,13 +112,16 @@ def converge_pol(adv, samples, model):
     return pol
 
 def find_all_pols(model):
-    base_vec = [0 for i in model.Actions]
+    base_vec = [False for i in model.Actions]
     act_vecs = []
+    
+    print("--------------------\nFinding policies")
     for a in model.Actions:
         vec = copy.copy(base_vec)
-        vec[a] = 1
+        vec[a] = True
         act_vecs.append(vec)
     act_poss = [[copy.copy(act_vecs[a]) for a in model.Enabled_actions[s]] for s in model.States]
+    print("Built list, now building full policies")
     pols = [np.array(pol) for pol in itertools.product(*act_poss)]
     return pols
 
@@ -126,28 +129,50 @@ def build_init_payoff(samples, model):
     pols = find_all_pols(model)
     all_probs = []
     non_dommed_pols = []
-    for j, pol in enumerate(pols):
+    print("--------------------\nBuilding initial payoff matrix")
+    best_wc = 0
+    for j, pol in enumerate(tqdm(pols)):
+        # could also find best deterministic policy here
         probs = test_pol(model, samples, pol)[1][:,model.Init_state]
+        if model.opt == "max":
+            wc = min(probs)
+            if wc > best_wc:
+                best_wc = wc
+                det_pol = pol
+        else:
+            wc = max(probs)
+            if wc < best_wc:
+                best_wc = wc
+                det_pol = pol
+                
         dommed = False
-        for elem in all_probs:
+        for i, elem in enumerate(all_probs):
             if model.opt == "max":
-                if np.all(probs > elem):
+                if np.all(probs <= elem):
                     dommed = True
+                elif np.all(probs >= elem):
+                    all_probs.pop(i)
+                    non_dommed_pols.pop(i)
             else:
-                if np.all(probs < elem):
+                if np.all(probs >= elem):
                     dommed = True
+                elif np.all(probs <= elem):
+                    all_probs.pop(i)
+                    non_dommed_pols.pop(i)
         if not dommed:
             all_probs.append(probs)
             non_dommed_pols.append(j)
-    pols = [pol[i] for i in non_dommed_pols]
+    pols = [pols[i] for i in non_dommed_pols]
     payoffs = np.vstack(all_probs)
     return payoffs, pols
 
 def calc_payoff_mat(samples, model):
     payoffs, pols = build_init_payoff(samples, model)
 
+    print("--------------------\nRemoving dominated samples")
+    
     non_domed_samples = []
-    for i in range(len(samples)):
+    for i in tqdm(range(len(samples))):
         if model.opt == "max":
             test_arr = np.all(payoffs[:,i][:,np.newaxis] > payoffs, axis=0)
         else:
@@ -162,58 +187,47 @@ def MNE_solver(samples, model):
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
     
     best = 0
+    print("---------------------\nIterating through MNE combinations")
     combs = list(itertools.combinations(range(len(rel_samples)), len(pols)))
     for elem in tqdm(combs):
         test_non = elem
         test_non_domed_payoffs = payoffs[:, test_non]
         br_mixer = np.ones((1, len(pols)))@np.linalg.inv(test_non_domed_payoffs)
+        br_mixer = np.maximum(0, br_mixer)
         br_mixer /= np.sum(br_mixer)
         res = (br_mixer@payoffs).flatten()
         if min(res) > best:
             best = min(res)
             best_samples = elem
             best_pol = np.copy(br_mixer)
-    return best, best_pol 
+    return best, best_pol, pols 
 
-def FSP_solver(samples, model, max_iters = 1000):
+def FSP_solver(samples, model, max_iters = 100000):
     update_parallel = True
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
     pol_dist = np.ones((1,len(pols)))/len(pols)
     sample_dist = np.ones((len(rel_samples),1))/len(rel_samples)
-    
-    new_pol = cp.Variable((1,len(pols)))
-    new_sample = cp.Variable((len(rel_samples),1))
-    
-    pol_vec = cp.Parameter((len(pols),1))
-    sample_vec = cp.Parameter((1,len(rel_samples)))
-
-    pol_obj = cp.Maximize(new_pol@pol_vec)
-    sample_obj = cp.Minimize(sample_vec@new_sample)
-
-    pol_cons = [cp.sum(new_pol)==1, new_pol >= 0]
-    sample_cons = [cp.sum(new_sample)==1, new_sample >= 0]
-
-    pol_prob = cp.Problem(pol_obj, pol_cons)
-    sample_prob = cp.Problem(sample_obj, sample_cons)
 
     sum_step = 0
-    for i in range(max_iters):
+    print("---------------------\nStarting FSP")
+    for i in tqdm(range(max_iters)):
         #step = 1/(i+1)
         step = 1
         sum_step += step
         new = step/sum_step
         old = 1-new
         if update_parallel:
-            sample_vec.value = pol_dist@payoffs
-            pol_vec.value = payoffs@sample_dist
-
-            pol_prob.solve()
-            sample_prob.solve()
-
-            pol_dist = old*pol_dist + new*new_pol.value
-            sample_dist = old*sample_dist + new*new_sample.value
+            sample_vec = pol_dist@payoffs
+            pol_vec = payoffs@sample_dist
+            
+            pol_dist *= old
+            pol_dist[0, np.argmax(pol_vec)] += new
+            
+            sample_dist *= old
+            sample_dist[np.argmin(sample_vec), 0] += new
+            
     res = min((pol_dist@payoffs).flatten())
-    return res, pol_dist 
+    return res, pol_dist, pols
 
 
 
@@ -330,8 +344,8 @@ def run_all(args):
         warm_probs = None
     num_states = len(model.States)
   
-    res_MNE, pol_MNE = MNE_solver(samples, model)
-    res_FSP, pol_FSP = FSP_solver(samples, model)
+    res_MNE, pol_MNE, pols = MNE_solver(samples, model)
+    res_FSP, pol_FSP, pols = FSP_solver(samples, model)
     import pdb; pdb.set_trace()
     solve_FSP(samples, model)
     return 0

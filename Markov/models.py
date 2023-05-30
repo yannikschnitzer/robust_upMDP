@@ -181,7 +181,7 @@ class storm_upMDP:
         else:
             
             for x in self.params:
-                if "coin" in model_file:
+                if "coin" in self.filename:
                     s = np.random.uniform(0.2, 0.8)
         
                 else:
