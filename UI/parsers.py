@@ -21,13 +21,16 @@ def parse_num(flag, num_type, min_val=-sys.maxsize, max_val=sys.maxsize):
          else:
              return res
     except ValueError:
-         raise Exception("Please select a valid number of samples for flag "+flag)
+         raise Exception("Please select a valid number of type "+str(num_type)+" for flag "+flag+" with value between "+str(min_val)+" and "+str(max_val))
 
 def parse_str(flag, opts):
     val = get_val(flag)
     if opts is not None:
         if val not in opts:
-         raise Exception("Please make a valid selection for flag "+flag)
+            opt_str = "\nValid options are:\n"
+            for opt in opts:
+                opt_str += "-"+opt+"\n"
+            raise Exception("Please make a valid selection for flag "+flag+opt_str)
     return val
 
 def parse_model(flag, opts):
@@ -44,6 +47,8 @@ def parse_model(flag, opts):
         model = test.get_model_5()
     elif model_name == "test6":
         model = test.get_model_6()
+    elif model_name == "test7":
+        model = test.get_model_7()
     else:
         wind = None
         if model_name == "drone":

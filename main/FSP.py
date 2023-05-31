@@ -16,6 +16,8 @@ import pickle
 from scipy.spatial import ConvexHull
 import os
 
+from .robust2 import solve_subgrad
+
 NUM_POOLS = os.cpu_count()
 
 def load_samples(filename):
@@ -43,14 +45,18 @@ def get_samples(model, N):
         #samples[0][1] = 0.6
         #samples[1][0] = 0.6
         #samples[1][1] = 0.8
-        samples[0][0] = 0.01
-        samples[0][1] = 0.4
-        samples[0][2] = 0.9
-        
+        #samples[0][0] = 0.01
+        #samples[0][1] = 0.4
+        #samples[0][2] = 0.9
+        #
         samples[1][0] = 1.0
         samples[1][1] = 0.8
         samples[1][2] = 0.3
-    
+    if N == 3:
+        samples[0][0] = 0.9
+        samples[1][0] = 0.1
+        samples[2][0] = 0.8
+
     return samples
 
 def test_pol(model, samples, pol=None):
@@ -185,7 +191,7 @@ def calc_payoff_mat(samples, model):
 
 def MNE_solver(samples, model):
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
-    
+    import pdb; pdb.set_trace()
     best = 0
     print("---------------------\nIterating through MNE combinations")
     combs = list(itertools.combinations(range(len(rel_samples)), len(pols)))
@@ -344,8 +350,9 @@ def run_all(args):
         warm_probs = None
     num_states = len(model.States)
   
-    res_MNE, pol_MNE, pols = MNE_solver(samples, model)
+    #res_MNE, pol_MNE, pols = MNE_solver(samples, model)
     res_FSP, pol_FSP, pols = FSP_solver(samples, model)
+    res_sg, pol_sg = solve_subgrad(samples, model)
     import pdb; pdb.set_trace()
     solve_FSP(samples, model)
     return 0

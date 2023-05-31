@@ -4,7 +4,7 @@ from tqdm import tqdm
 import Markov.writer as writer
 import Markov.models
 
-def MC_sampler(model, k, thresh, violation_prob, pol=None):
+def MC_sampler(model, k, thresh, pol=None):
     inn_count = 0
     for j in tqdm(range(k)):
         sample = Markov.models.MDP(model.sample_MDP())
@@ -12,7 +12,7 @@ def MC_sampler(model, k, thresh, violation_prob, pol=None):
             sample = sample.fix_pol(pol)
         IO = writer.stormpy_io(sample)
         IO.write()
-        res, all_res = IO.solve()
+        res, all_res, sol_pol = IO.solve()
         if model.opt == "max":
             if res[0] < thresh:
                 inn_count+= 1

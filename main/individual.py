@@ -14,7 +14,7 @@ def calc_probs(model, N):
         IO = writer.stormpy_io(sample)
         IO.write()
         #IO.solve_PRISM()
-        res, all_res = IO.solve()
+        res, all_res, _ = IO.solve()
         probs += res
     return probs
 
@@ -94,7 +94,7 @@ def run_all(args):
                " is found to be {:.3f}, with confidence {:.3f}.").format(min_prob, thresh, args["beta"]))
 
     if args["MC"]:
-        emp_violation = MC_sampler(model, args["MC_samples"], min_prob, thresh, None) 
+        emp_violation = MC_sampler(model, args["MC_samples"], min_prob) 
         print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
     print("\n\n")
 

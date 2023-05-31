@@ -13,7 +13,7 @@ def get_model():
     zero = t_f.fixed(0)
     one = t_f.fixed(1)
    
-    test_val = 0.3
+    test_val = 0.52
 
     Test_Model.Transition_probs = [
         [
@@ -327,5 +327,77 @@ def get_model_6():
     Test_Model.Formulae = ["Pmax=? [ F \"reached\"]"]
 
     Test_Model.Enabled_actions = [[0,1,2,3,4,5,],[0],[0]]
+
+    return Test_Model
+
+def get_model_7():
+    Test_Model = Markov.upMDP()
+
+    Test_Model.States = np.array(range(9))
+    Test_Model.Actions = np.array(range(2))
+    Test_Model.Init_state = 0
+    
+    zero = t_f.fixed(0)
+    one = t_f.fixed(1)
+    
+    funcs = [t_f.linear_multi(i) for i in range(8)]
+
+
+    Test_Model.Transition_probs = [
+        [
+            [one],
+            [one],
+        ],
+        [
+            funcs[0],
+            funcs[1],
+        ],
+        [
+            funcs[2],
+        ],
+        [
+            funcs[3],
+        ],
+        [
+            funcs[4],
+            funcs[5],
+        ],
+        [
+            funcs[6],
+        ],
+        [
+            funcs[7],
+        ],
+        [
+            [one]
+        ],
+        [
+            [one]
+        ]]
+
+    Test_Model.paramed = [[[False],[False]],
+                     [[True, True], [True, True]],
+                     [[True, True]], 
+                     [[True, True]],
+                     [[True, True], [True, True]],
+                     [[True, True]], 
+                     [[True, True]], 
+                     [[False]],
+                     [[False]]]
+    Test_Model.max_supports = 8
+    Test_Model.trans_ids = [[[1],[4]],[[2,8],[3,8]],[[7,8]],[[7,8]],[[5,8],[6,8]],[[7,8]],[[7,8]],[[7]],[[8]]]
+
+    #Test_Model.param_sampler = samplers.gauss(np.ones((2))*0.8, np.eye(2)*0.1)
+    Test_Model.param_sampler = samplers.uniform(8, [0.2, 0.4, 0.3, 0.1, 0.7, 0.1, 0.2, 0.3]
+                                                 , [0.3, 0.5, 0.5, 0.9, 0.9, 0.5, 1.0, 0.7])
+
+    Test_Model.Labels = ["init", "reached"]
+    Test_Model.Labelled_states = [[0,1,2,3,4,5,6,7,8],[7]]
+
+    Test_Model.Name = "test"
+        
+    Test_Model.Formulae = ["Pmax=? [ F \"reached\"]"]
+
+    Test_Model.Enabled_actions = [[0,1],[0,1],[0],[0],[0,1],[0],[0],[0],[0]]
 
     return Test_Model
