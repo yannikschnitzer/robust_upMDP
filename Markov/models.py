@@ -121,23 +121,7 @@ class pMDP(MDP):
         fixed_MDP.params = params
 
         return fixed_MDP
-    
-def fix_s_pol(params):
-    pol = params[0]
-    ids = params[1]
-    probs = params[2]
-    num_acts = pol.size 
-    max_id = max([max(elem) for elem in ids])
-    trans_arr = np.zeros((num_acts,max_id+1))
 
-    for i, inds in enumerate(ids):
-        trans_arr[i][inds] = probs[i]
-    res = pol@trans_arr
-    s_primes = list(np.argwhere(res).flatten())
-    new_ids = s_primes
-    s_trans_probs = list(res[s_primes])
-    return new_ids, s_trans_probs
-    
 
 class storm_MDP:
     mdp = None
@@ -160,42 +144,19 @@ class storm_MDP:
         new_trans_probs = []
         new_trans_ids = []
         parallel = True
-        if parallel:
-            params = [(pol[s][self.Enabled_actions[s]], self.trans_ids[s], self.Transition_probs[s])
-                      for s in self.States]
-            with Pool() as pool:
-                res = pool.map(fix_s_pol, params)
-            new_trans_probs = [elem[1] for elem in res]
-            new_trans_ids = [elem[0] for elem in res]
-        else:
-            for s in self.States:
-                if len(self.mdp.states[s].actions) > 1:
-                    new_ids, new_p = fix_s_pol((pol[s][self.Enabled_actions[s]], self.trans_ids[s], self.Transition_probs[s]))
-                    new_trans_ids.append(new_ids)
-                    s_trans_probs = new_p
-                    #import pdb; pdb.set_trace()
-                    #trans_arr = np.zeros((len(self.Enabled_actions[s]),len(self.States)))
-                    #for i, inds in enumerate(self.trans_ids[s]):
-                    #    trans_arr[i][inds] = self.Transition_probs[s][i]
-                    #res = pol[s][self.Enabled_actions[s]]@trans_arr
-                    #s_primes = list(np.argwhere(res).flatten())
-                    #new_trans_ids.append(s_primes)
-                    #s_trans_probs = list(res[s_primes])
-
-                    #s_trans_probs = []
-                    #pol_s = pol[s]
-                    #new_trans_ids.append(list(chain(*self.trans_ids[s])))
-                    #import pdb; pdb.set_trace()
-                    #s_trans_probs = np.multiply(
-                    #                pol_s[self.Enabled_actions[s]],
-                    #                np.array(self.Transition_probs[s]).T
-                    #                ).tolist()[0] 
-                    #for a_id, _ in enumerate(self.mdp.states[s].actions):
-                    #    s_trans_probs += [pol_s[a_id]*elem for elem in self.Transition_probs[s][a_id]]
-                else:
-                    new_trans_ids.append(list(chain(*self.trans_ids[s])))
-                    s_trans_probs = self.Transition_probs[s][0]
-                new_trans_probs.append(s_trans_probs)
+        for s in self.States:
+            if len(self.mdp.states[s].actions) > 1:
+                trans_arr = np.zeros((len(self.Enabled_actions[s]),len(self.States)))
+                for i, inds in enumerate(self.trans_ids[s]):
+                    trans_arr[i][inds] = self.Transition_probs[s][i]
+                res = pol[s][self.Enabled_actions[s]]@trans_arr
+                s_primes = list(np.argwhere(res).flatten())
+                new_trans_ids.append(s_primes)
+                s_trans_probs = list(res[s_primes])
+            else:
+                new_trans_ids.append(list(chain(*self.trans_ids[s])))
+                s_trans_probs = self.Transition_probs[s][0]
+            new_trans_probs.append(s_trans_probs)
         fixed_MC = MC()
         fixed_MC.States = self.States
         fixed_MC.Init_state = self.Init_state
@@ -316,7 +277,7 @@ class storm_upMDP:
         #sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)
         acc_params = self.param_sampler()
         sample = self.fix_params(acc_params)
-        out = storm_MDP()
+        #out = storm_MDP()
         #out.mdp = sample
         #out.props = self.props
         #out.Init_state = self.Init_state
@@ -332,7 +293,17 @@ class storm_upMDP:
         #out.Formulae = self.Formulae
         #out.opt = self.opt
         #out.params = acc_params
-        return out
+        return sample
+
+    def get_trans_arr(self):
+        arr  = np.zeros((len(self.States),len(self.Actions),len(self.States)))
+        for s_id, s in enumerate(self.States):
+            for a_id, a in enumerate(self.Enabled_actions[s]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                    trans_prob = self.Transition_probs[s_id][a_id][s_prime_id]
+                    if trans_prob != 'p':
+                        arr[s][a][s_prime] = trans_prob
+        return arr
 
 
 class upMDP(pMDP):

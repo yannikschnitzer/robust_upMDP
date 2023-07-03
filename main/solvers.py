@@ -73,9 +73,28 @@ def test_pol(model, samples, pol=None, paramed_models = None):
     true_probs = np.array(true_probs)
     return wc, true_probs, pols
 
+def test_pol2(model, pol, paramed_models, trans_arr):
+    # this is v slow, but has the potential for parallelisation...
+
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    MC_arr = np.zeros((num_states,num_states))
+    for s in model.paramed_states:
+        for a_id, a in enumerate(model.Enabled_actions[s]):
+            for s_prime_id, s_prime in enumerate(model.trans_ids[s][a]):
+                trans_arr[s][a][s_prime] = model.Transition_probs[s][a_id][s_prime_id]
+    for s in model.States:
+        MC_arr[s] = pol[s]@trans_arr[s]
+    test_vec = np.zeros(num_states)
+    test_vec[model.Init_state] = 1
+    ss = test_vec @ np.linalg.matrix_power(MC_arr, 100000)
+    return sum(ss[model.Labelled_states[-1]])
+
 def solve_subgrad(samples, model, max_iters=500):
     print("--------------------\nStarting subgradient descent")
     fixed_MDPs = [model.fix_params(sample) for sample in samples]
+    
+    arr = model.get_trans_arr()
 
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -96,7 +115,7 @@ def solve_subgrad(samples, model, max_iters=500):
         time_start = time.perf_counter()
         
         step = 1/(i+1)
-        step = 0.1
+        step = 10
         grad = np.zeros_like(pol)
         for s in model.States:
             if len(model.Enabled_actions[s]) > 1:
@@ -110,11 +129,17 @@ def solve_subgrad(samples, model, max_iters=500):
                                          grad_finder, 
                                          paramed_models = [fixed_MDPs[worst]])[0] 
                     toc = time.perf_counter()
-                    #print(toc-tic)
+                    logging.debug("Time to find gradient: " + str(toc-tic))
+                    #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
+                    #tac = time.perf_counter()
+                    #print("new version: " + str(tac-toc))
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
-        pol += step*grad
-        
+        if model.opt == "max":
+            pol += step*grad
+        else:
+            pol -= step*grad 
+
         for s in model.States:
             if len(model.Enabled_actions[s]) <= 1:
                 pass
@@ -146,6 +171,7 @@ def solve_subgrad(samples, model, max_iters=500):
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
         worst = np.random.choice(worst.flatten())
         wc_hist.append(wc)
+        logging.info("Current value: "+str(wc))
     return wc, pol
 
 def find_all_pols(model):
