@@ -1,4 +1,10 @@
 import Markov.models as Markov
+import stormpy
+import stormpy.core
+import stormpy.logic
+import stormpy.pars
+import stormpy.examples
+import stormpy.examples.files
 
 
 def parse(storm_model, params, filename, props, f, weather= None):
@@ -60,11 +66,25 @@ def parse(storm_model, params, filename, props, f, weather= None):
     elif 'nand' in filename:
         model.opt="min"
         model.Labelled_states.append(model.Labelled_states[model.Labels.index("target")])
-    
+
     model.paramed = [[[not t.value().is_constant() for t in action.transitions]
                        for action in state.actions]
                        for state in storm_model.states]
+    if str(model.model.model_type)=='ModelType.DTMC':
+        instantiator = stormpy.pars.PDtmcInstantiator(model.model)
+    elif  str(model.model.model_type)=='ModelType.MDP':
+        instantiator = stormpy.pars.PMdpInstantiator(model.model)
+    else:
+        raise RuntimeError("Invalid model type (should be a pDTMC or pMDP).")
+    sample_params = model.param_sampler()
+    sample = instantiator.instantiate(sample_params)
+   
+    model.Transition_probs = [[[t.value() if not model.paramed[s_id][a_id][t_id] else 'p' 
+                                for t_id, t in enumerate(action.transitions)]
+                                for a_id, action in enumerate(state.actions)]
+                                for s_id, state in enumerate(sample.states)]
     model.max_supports = sum([sum([any([not t.value().is_constant() for t in action.transitions])
                         for action in state.actions])
                         for state in storm_model.states])
+    model.paramed_states = [i for i, states in enumerate(model.paramed) if any([any(acts) for acts in states])]
     return model

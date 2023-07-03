@@ -83,6 +83,7 @@ class stormpy_io:
         if hasattr(self.model, "mdp"):
             res = []
             all_res = []
+            import pdb; pdb.set_trace()
             for spec in self.specs:
                 result = stormpy.model_checking(self.mdp, spec, extract_scheduler=True)
                 if self.model.Actions is not None:

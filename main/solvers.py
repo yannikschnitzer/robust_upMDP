@@ -29,11 +29,10 @@ def get_samples(model, N):
     samples = [model.param_sampler() for j in range(N)]
     return samples
 
-def test_pol(model, samples, pol=None):
-    tic = time.perf_counter_ns()
+def test_pol(model, samples, pol=None, paramed_models = None):
     num_states = len(model.States)
     num_acts = len(model.Actions)
-    
+     
     true_probs = []
     pols = []
     if model.opt == "max":
@@ -41,11 +40,17 @@ def test_pol(model, samples, pol=None):
     else:
         wc = 0
     for ind, sample in enumerate(samples):
-        test_MDP = model.fix_params(sample)
+        time_start = time.perf_counter()
+        if paramed_models is None:
+            test_MDP = model.fix_params(sample)
+        else:
+            test_MDP = paramed_models[ind]
+        time_fix_params = time.perf_counter()
         if pol is not None:
             test_model = test_MDP.fix_pol(pol)
         else:
             test_model = test_MDP
+        time_fix_pol = time.perf_counter()
         IO = writer.stormpy_io(test_model)
         IO.write()
         res, all_res, sol_pol = IO.solve()
@@ -57,14 +62,20 @@ def test_pol(model, samples, pol=None):
             if wc<res[0]:
                 wc = res[0]
         true_probs.append(all_res[0])
-    toc = time.perf_counter_ns()
-    avg_time_for_solving = ((toc-tic))
-    logging.debug("solving {:.3f}ns".format(avg_time_for_solving))
+
+        time_end = time.perf_counter()
+        time_for_fixing_param = time_fix_params -time_start
+        time_for_fixing_pol = time_fix_pol -time_fix_params
+        time_for_solving = ((time_end-time_fix_pol))
+        logging.debug("solving {:.3f}s".format(time_for_solving))
+        logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
+        logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
     true_probs = np.array(true_probs)
     return wc, true_probs, pols
 
 def solve_subgrad(samples, model, max_iters=500):
     print("--------------------\nStarting subgradient descent")
+    fixed_MDPs = [model.fix_params(sample) for sample in samples]
 
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -78,10 +89,12 @@ def solve_subgrad(samples, model, max_iters=500):
 
     obj = cp.Minimize(cp.norm(projected-point))
     wc_hist = []
-    wc, true_probs, _ = test_pol(model, samples, pol)
+    wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = fixed_MDPs)
     worst = np.argwhere(true_probs[:,model.Init_state]==wc)
     worst = np.random.choice(worst.flatten())
     for i in tqdm(range(max_iters)):
+        time_start = time.perf_counter()
+        
         step = 1/(i+1)
         step = 0.1
         grad = np.zeros_like(pol)
@@ -91,7 +104,15 @@ def solve_subgrad(samples, model, max_iters=500):
                     grad_finder = np.copy(pol)
                     grad_finder[s] = 0
                     grad_finder[s,a] = 1
-                    grad[s,a] = test_pol(model, [samples[worst]], grad_finder)[0]
+                    tic = time.perf_counter()
+                    grad[s,a] = test_pol(model, 
+                                         [samples[worst]], 
+                                         grad_finder, 
+                                         paramed_models = [fixed_MDPs[worst]])[0] 
+                    toc = time.perf_counter()
+                    #print(toc-tic)
+        time_grads = time.perf_counter()-time_start
+        logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         pol += step*grad
         
         for s in model.States:
@@ -119,6 +140,8 @@ def solve_subgrad(samples, model, max_iters=500):
                 prob = cp.Problem(obj, cons)
                 res = prob.solve()
                 pol[s] = projected.value
+        time_proj = time.perf_counter()-time_start-time_grads
+        logging.debug("Time for projection step: {:.3f}".format(time_proj))
         wc, true_probs, _ = test_pol(model, samples, pol)
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
         worst = np.random.choice(worst.flatten())
@@ -267,9 +290,10 @@ def run_all(args):
         warm_probs = None
     num_states = len(model.States)
   
+    res_sg, pol_sg = solve_subgrad(samples, model)
+    import pdb; pdb.set_trace()
     res_MNE, pol_MNE, pols = MNE_solver(samples, model)
     res_FSP, pol_FSP, pols, a_post_support_num = FSP_solver(samples, model)
-    res_sg, pol_sg = solve_subgrad(samples, model)
 
     wc, probs, _ = test_pol(model, samples, pol_sg)
     supports_2 = np.sum(probs[:, model.Init_state] <= wc+1e-3)

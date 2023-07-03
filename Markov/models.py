@@ -1,3 +1,4 @@
+from itertools import chain
 import numpy as np
 import Markov.storm_interface as storm_ui
 import core.create_drone_prism_model as create_prism
@@ -7,6 +8,8 @@ import stormpy.logic
 import stormpy.pars
 import stormpy.examples
 import stormpy.examples.files
+from time import perf_counter as timer
+from multiprocessing import Pool
 
 class base:
     """
@@ -118,6 +121,23 @@ class pMDP(MDP):
         fixed_MDP.params = params
 
         return fixed_MDP
+    
+def fix_s_pol(params):
+    pol = params[0]
+    ids = params[1]
+    probs = params[2]
+    num_acts = pol.size 
+    max_id = max([max(elem) for elem in ids])
+    trans_arr = np.zeros((num_acts,max_id+1))
+
+    for i, inds in enumerate(ids):
+        trans_arr[i][inds] = probs[i]
+    res = pol@trans_arr
+    s_primes = list(np.argwhere(res).flatten())
+    new_ids = s_primes
+    s_trans_probs = list(res[s_primes])
+    return new_ids, s_trans_probs
+    
 
 class storm_MDP:
     mdp = None
@@ -134,9 +154,59 @@ class storm_MDP:
     Formulae = None
     opt = "max"
 
-    def fux_pol(self, pol):
-        import pdb; pdb.set_trace()
-        raise NotImplementedError
+    
+
+    def fix_pol(self, pol):
+        new_trans_probs = []
+        new_trans_ids = []
+        parallel = True
+        if parallel:
+            params = [(pol[s][self.Enabled_actions[s]], self.trans_ids[s], self.Transition_probs[s])
+                      for s in self.States]
+            with Pool() as pool:
+                res = pool.map(fix_s_pol, params)
+            new_trans_probs = [elem[1] for elem in res]
+            new_trans_ids = [elem[0] for elem in res]
+        else:
+            for s in self.States:
+                if len(self.mdp.states[s].actions) > 1:
+                    new_ids, new_p = fix_s_pol((pol[s][self.Enabled_actions[s]], self.trans_ids[s], self.Transition_probs[s]))
+                    new_trans_ids.append(new_ids)
+                    s_trans_probs = new_p
+                    #import pdb; pdb.set_trace()
+                    #trans_arr = np.zeros((len(self.Enabled_actions[s]),len(self.States)))
+                    #for i, inds in enumerate(self.trans_ids[s]):
+                    #    trans_arr[i][inds] = self.Transition_probs[s][i]
+                    #res = pol[s][self.Enabled_actions[s]]@trans_arr
+                    #s_primes = list(np.argwhere(res).flatten())
+                    #new_trans_ids.append(s_primes)
+                    #s_trans_probs = list(res[s_primes])
+
+                    #s_trans_probs = []
+                    #pol_s = pol[s]
+                    #new_trans_ids.append(list(chain(*self.trans_ids[s])))
+                    #import pdb; pdb.set_trace()
+                    #s_trans_probs = np.multiply(
+                    #                pol_s[self.Enabled_actions[s]],
+                    #                np.array(self.Transition_probs[s]).T
+                    #                ).tolist()[0] 
+                    #for a_id, _ in enumerate(self.mdp.states[s].actions):
+                    #    s_trans_probs += [pol_s[a_id]*elem for elem in self.Transition_probs[s][a_id]]
+                else:
+                    new_trans_ids.append(list(chain(*self.trans_ids[s])))
+                    s_trans_probs = self.Transition_probs[s][0]
+                new_trans_probs.append(s_trans_probs)
+        fixed_MC = MC()
+        fixed_MC.States = self.States
+        fixed_MC.Init_state = self.Init_state
+        fixed_MC.Transition_probs = new_trans_probs
+        fixed_MC.trans_ids = new_trans_ids
+        fixed_MC.Name = self.Name
+        fixed_MC.Formulae = self.Formulae
+        fixed_MC.Labels = self.Labels
+        fixed_MC.Labelled_states = self.Labelled_states
+        fixed_MC.opt = self.opt
+        return fixed_MC
 
 class storm_upMDP:
     opt = "max"
@@ -198,6 +268,8 @@ class storm_upMDP:
         return rational_parameter_assignments
 
     def fix_params(self, params):
+        start_time = timer()
+        times = []
         if str(self.model.model_type)=='ModelType.DTMC':
             instantiator = stormpy.pars.PDtmcInstantiator(self.model)
         elif  str(self.model.model_type)=='ModelType.MDP':
@@ -210,39 +282,56 @@ class storm_upMDP:
         out.mdp = sample
         out.props = self.props
         out.Init_state = self.Init_state
-      
-        out.Transition_probs = [[[transition.value() for transition in action.transitions] for action in state.actions] for state in sample.states]
+        
+        times.append(timer()-start_time)
+        out.Transition_probs = self.Transition_probs
+        states = sample.states
+        for s in self.paramed_states:
+            state = states[s]
+            out.Transition_probs[s] =   [
+                                            [   
+                                                transition.value() for transition in action.transitions
+                                            ] 
+                                            for action in state.actions
+                                        ] 
         #out.trans_ids = [[[transition.column for transition in action.transitions] for action in state.actions] for state in sample.states]
+        
+        times.append(timer()-start_time)
         out.trans_ids = self.trans_ids
         out.States = self.States
         out.Actions = self.Actions
-        out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
+        out.Enabled_actions = self.Enabled_actions
+        #out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
+        times.append(timer()-start_time)
         out.Labels = self.Labels
         out.Labelled_states = self.Labelled_states
         out.Formulae = self.Formulae
         out.opt = self.opt
         out.params = params
+        #print(times)
         return out
     
 
     def sample_MDP(self):
-        sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)
+        #sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)
+        acc_params = self.param_sampler()
+        sample = self.fix_params(acc_params)
         out = storm_MDP()
-        out.mdp = sample
-        out.props = self.props
-        out.Init_state = self.Init_state
+        #out.mdp = sample
+        #out.props = self.props
+        #out.Init_state = self.Init_state
       
-        out.Transition_probs = [[[transition.value() for transition in action.transitions] for action in state.actions] for state in sample.states]
-        #out.trans_ids = [[[transition.column for transition in action.transitions] for action in state.actions] for state in sample.states]
-        out.trans_ids = self.trans_ids
-        out.States = self.States
-        out.Actions = self.Actions
-        out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
-        out.Labels = self.Labels
-        out.Labelled_states = self.Labelled_states
-        out.Formulae = self.Formulae
-        out.opt = self.opt
-        out.params = acc_params
+        #out.Transition_probs = [[[transition.value() for transition in action.transitions] for action in state.actions] for state in sample.states]
+        ##out.trans_ids = [[[transition.column for transition in action.transitions] for action in state.actions] for state in sample.states]
+        #out.trans_ids = self.trans_ids
+        #out.States = self.States
+        #out.Actions = self.Actions
+        #out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
+        #out.Labels = self.Labels
+        #out.Labelled_states = self.Labelled_states
+        #out.Formulae = self.Formulae
+        #out.opt = self.opt
+        #out.params = acc_params
         return out
 
 
