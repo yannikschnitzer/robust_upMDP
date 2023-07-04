@@ -32,7 +32,10 @@ def get_samples(model, N):
 def test_pol(model, samples, pol=None, paramed_models = None):
     num_states = len(model.States)
     num_acts = len(model.Actions)
-     
+    
+    if paramed_models is not None:
+        test_MDP = model.fix_params(samples[0])
+
     true_probs = []
     pols = []
     if model.opt == "max":
@@ -44,7 +47,7 @@ def test_pol(model, samples, pol=None, paramed_models = None):
         if paramed_models is None:
             test_MDP = model.fix_params(sample)
         else:
-            test_MDP = paramed_models[ind]
+            test_MDP.Transition_probs = paramed_models[ind]
         time_fix_params = time.perf_counter()
         if pol is not None:
             test_model = test_MDP.fix_pol(pol)
@@ -92,8 +95,12 @@ def test_pol2(model, pol, paramed_models, trans_arr):
 
 def solve_subgrad(samples, model, max_iters=500):
     print("--------------------\nStarting subgradient descent")
-    fixed_MDPs = [model.fix_params(sample) for sample in samples]
     
+    sample_trans_probs = []
+    for sample in samples:
+        new_MDP = model.fix_params(sample)
+        sample_trans_probs.append(copy.copy(new_MDP.Transition_probs))
+
     arr = model.get_trans_arr()
 
     num_states = len(model.States)
@@ -108,13 +115,21 @@ def solve_subgrad(samples, model, max_iters=500):
 
     obj = cp.Minimize(cp.norm(projected-point))
     wc_hist = []
-    wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = fixed_MDPs)
+    wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
     worst = np.argwhere(true_probs[:,model.Init_state]==wc)
     worst = np.random.choice(worst.flatten())
+    
+    best_worst_pol = test_pol(model, [samples[worst]])[2][0]
+    test_wc, test_probs, _ = test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
+    test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
+    if worst in test_worst:
+        print("Worst case holds with deterministic policy, deterministic is optimal")
+        return test_wc, best_worst_pol
     for i in tqdm(range(max_iters)):
         time_start = time.perf_counter()
         
-        step = 1/(i+1)
+        old_pol = np.copy(pol)
+        #step = 100/(i+1)
         step = 10
         grad = np.zeros_like(pol)
         for s in model.States:
@@ -127,7 +142,7 @@ def solve_subgrad(samples, model, max_iters=500):
                     grad[s,a] = test_pol(model, 
                                          [samples[worst]], 
                                          grad_finder, 
-                                         paramed_models = [fixed_MDPs[worst]])[0] 
+                                         paramed_models = [sample_trans_probs[worst]])[0] 
                     toc = time.perf_counter()
                     logging.debug("Time to find gradient: " + str(toc-tic))
                     #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
@@ -167,11 +182,12 @@ def solve_subgrad(samples, model, max_iters=500):
                 pol[s] = projected.value
         time_proj = time.perf_counter()-time_start-time_grads
         logging.debug("Time for projection step: {:.3f}".format(time_proj))
-        wc, true_probs, _ = test_pol(model, samples, pol)
+        wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
         worst = np.random.choice(worst.flatten())
         wc_hist.append(wc)
-        logging.info("Current value: "+str(wc))
+        logging.info("Current value: {:.3f}, with sample {}".format(wc, worst))
+        logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
     return wc, pol
 
 def find_all_pols(model):

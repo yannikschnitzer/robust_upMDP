@@ -16,3 +16,5 @@ def main():
 if __name__=="__main__":
     main()
 
+
+# Currently finding policy of worst case beats sg descent.........
