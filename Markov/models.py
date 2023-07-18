@@ -316,3 +316,13 @@ class upMDP(pMDP):
     def sample_MDP(self):
         params = self.param_sampler()
         return self.fix_params(params)
+    
+    def get_trans_arr(self):
+        arr  = np.zeros((len(self.States),len(self.Actions),len(self.States)))
+        for s_id, s in enumerate(self.States):
+            for a_id, a in enumerate(self.Enabled_actions[s]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                    if not self.paramed[s_id][a_id][s_prime_id]:
+                        trans_prob = self.Transition_probs[s_id][a_id][s_prime_id](0)
+                        arr[s][a][s_prime] = trans_prob
+        return arr

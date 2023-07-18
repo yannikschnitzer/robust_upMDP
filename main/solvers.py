@@ -10,6 +10,8 @@ import copy
 import pickle
 import logging
 import os
+import matplotlib.pyplot as plt
+import pycarl
 
 def load_samples(filename):
     with open(filename, 'rb') as f:
@@ -93,7 +95,65 @@ def test_pol2(model, pol, paramed_models, trans_arr):
     ss = test_vec @ np.linalg.matrix_power(MC_arr, 100000)
     return sum(ss[model.Labelled_states[-1]])
 
-def solve_subgrad(samples, model, max_iters=500):
+def calc_param_grad(model, sample, paramed_model = None):
+    num_states = len(model.States)
+    num_acts = len(model.Actions)
+    grad = {}
+
+    for s in model.States:
+        if len(model.Enabled_actions[s]) > 1:
+            for a in model.Enabled_actions[s]:
+                tic = time.perf_counter()
+                
+                if paramed_model is not None:
+                    test_MDP = model.fix_params(sample)
+
+                true_probs = []
+                pols = []
+                if model.opt == "max":
+                    wc = 1
+                else:
+                    wc = 0
+                time_start = time.perf_counter()
+                if paramed_model is None:
+                    test_MDP = model.fix_params(sample)
+                else:
+                    test_MDP.Transition_probs = paramed_model
+                
+                time_fix_params = time.perf_counter()
+
+                time_fix_pol = time.perf_counter()
+                IO = writer.PRISM_grad(test_MDP)
+                IO.state = s
+                IO.act = a
+                IO.write()
+                
+                res, all_res, sol_pol = IO.solve()
+                
+                grad[(s,a)] = res
+
+                time_end = time.perf_counter()
+                time_for_fixing_param = time_fix_params -time_start
+                time_for_fixing_pol = time_fix_pol -time_fix_params
+                time_for_solving = ((time_end-time_fix_pol))
+                logging.debug("solving {:.3f}s".format(time_for_solving))
+                logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
+                logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
+
+                toc = time.perf_counter()
+                logging.debug("Time to find gradient: " + str(toc-tic))
+    return grad
+
+def find_grad(paramed, pol):
+    grad = np.zeros_like(pol)
+    instantiators = {}
+    for s, row in enumerate(pol):
+        for a_i, a_val in enumerate(row):
+            instantiators[pycarl.Variable("pi_{}_{}".format(s,a_i))] = pycarl.cln.Rational(a_val)
+    import pdb; pdb.set_trace() # Keep getting a segmentation fault when trying to evaluate??
+
+
+def solve_subgrad(samples, model, max_iters=100):
     print("--------------------\nStarting subgradient descent")
     
     sample_trans_probs = []
@@ -118,20 +178,27 @@ def solve_subgrad(samples, model, max_iters=500):
     wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
     worst = np.argwhere(true_probs[:,model.Init_state]==wc)
     worst = np.random.choice(worst.flatten())
-    
+   
+    param_grads = {}
     best_worst_pol = test_pol(model, [samples[worst]])[2][0]
     test_wc, test_probs, _ = test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
     test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
     if worst in test_worst:
         print("Worst case holds with deterministic policy, deterministic is optimal")
-        return test_wc, best_worst_pol
+        return test_wc, best_worst_pol, test_wc
     for i in tqdm(range(max_iters)):
         time_start = time.perf_counter()
         
         old_pol = np.copy(pol)
-        #step = 100/(i+1)
-        step = 10
+        step = 1/(i+1)
+        #step = 10
+        if worst not in param_grads:
+            param_grads[worst] = calc_param_grad(model, samples[worst], sample_trans_probs[worst]) 
+        grad = find_grad(param_grads[worst], pol)
+
         grad = np.zeros_like(pol)
+        min_elem = 1 
+        max_elem = 0
         for s in model.States:
             if len(model.Enabled_actions[s]) > 1:
                 for a in model.Enabled_actions[s]:
@@ -139,21 +206,31 @@ def solve_subgrad(samples, model, max_iters=500):
                     grad_finder[s] = 0
                     grad_finder[s,a] = 1
                     tic = time.perf_counter()
-                    grad[s,a] = test_pol(model, 
+                    new = test_pol(model, 
                                          [samples[worst]], 
                                          grad_finder, 
                                          paramed_models = [sample_trans_probs[worst]])[0] 
+                    grad[s,a] = new 
                     toc = time.perf_counter()
                     logging.debug("Time to find gradient: " + str(toc-tic))
+                    min_elem = min(new, min_elem)
+                    max_elem = max(new, max_elem)
                     #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
                     #tac = time.perf_counter()
                     #print("new version: " + str(tac-toc))
+        #grad_norm = np.linalg.norm(grad, ord=np.inf)
+        #import pdb; pdb.set_trace()
+        nonzero_inds = np.nonzero(grad)
+        scaled_grad = np.copy(grad)
+        scaled_grad[nonzero_inds] -= min_elem
+        scaled_grad /= max_elem-min_elem
+        #scaled_grad = grad / grad_scale
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":
-            pol += step*grad
+            pol += step*scaled_grad
         else:
-            pol -= step*grad 
+            pol -= step*scaled_grad 
 
         for s in model.States:
             if len(model.Enabled_actions[s]) <= 1:
@@ -188,7 +265,7 @@ def solve_subgrad(samples, model, max_iters=500):
         wc_hist.append(wc)
         logging.info("Current value: {:.3f}, with sample {}".format(wc, worst))
         logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
-    return wc, pol
+    return wc, pol, wc_hist
 
 def find_all_pols(model):
     base_vec = [False for i in model.Actions]
@@ -331,32 +408,43 @@ def run_all(args):
     else:
         warm_probs = None
     num_states = len(model.States)
-  
-    res_sg, pol_sg = solve_subgrad(samples, model)
-    import pdb; pdb.set_trace()
-    res_MNE, pol_MNE, pols = MNE_solver(samples, model)
-    res_FSP, pol_FSP, pols, a_post_support_num = FSP_solver(samples, model)
-
-    wc, probs, _ = test_pol(model, samples, pol_sg)
-    supports_2 = np.sum(probs[:, model.Init_state] <= wc+1e-3)
-    assert supports_2 == a_post_support_num
-
-    print("----------------\nResults:\nmatrix solver: {:.3f}\nFSP: {:.3f}\nSubgradient: {:.3f}".format(res_MNE, res_FSP, res_sg))
-
-    if args["result_save_file"] is not None:
-        save_data(args["result_save_file"], {"worst": wc, "probs":all_p, "pol":pol, "supports":supports})
 
     N = args["num_samples"]
-
-    [a_post_eps_L, a_post_eps_U] = \
-        calc_eps_risk_complexity(args["beta"], N, a_post_support_num)
+  
+    res_sg, pol_sg, sg_hist = solve_subgrad(samples, model)
     
-    print("A posteriori, found " + str(a_post_support_num) + " support constraints")
+    plt.plot(sg_hist)
+    
+    wc, probs, _ = test_pol(model, samples, pol_sg)
+    if model.opt == "max":
+        active_sg = np.sum(probs[:, model.Init_state] <= wc+1e-3)
+    else:
+        active_sg = np.sum(probs[:, model.Init_state] >= wc-1e-3)
 
-    print("A posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
-          .format(a_post_eps_L, a_post_eps_U, args["beta"]))
+    print("Using subgradient methods found " + str(active_sg) + " active constraints a posteriori")
+    [a_post_eps_L, a_post_eps_U] = \
+        calc_eps_risk_complexity(args["beta"], N, active_sg)
+
+    print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
+            .format(a_post_eps_L, a_post_eps_U, args["beta"]))
 
     print("Optimal satisfaction probability is found to be {:.3f}".format(res_sg))
+    
+    if len(model.States)**len(model.Actions) < 100:
+        res_MNE, pol_MNE, pols = MNE_solver(samples, model)
+        res_FSP, pol_FSP, pols, a_post_support_num = FSP_solver(samples, model)
+        import pdb; pdb.set_trace()
+        assert active_sg == a_post_support_num
+        print("----------------\nResult comparison:\nmatrix solver: {:.3f}\nFSP: {:.3f}\nSubgradient: {:.3f}".format(res_MNE, res_FSP, res_sg))
+        [a_post_eps_L, a_post_eps_U] = \
+            calc_eps_risk_complexity(args["beta"], N, a_post_support_num)
+        print("Using game thoeretic methods found " + str(a_post_support_num) + " support constraints a posteriori")
+
+        print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
+            .format(a_post_eps_L, a_post_eps_U, args["beta"]))
+        print("Optimal satisfaction probability is found to be {:.3f}".format(res_MNE))
+    if args["result_save_file"] is not None:
+        save_data(args["result_save_file"], {"worst": wc, "probs":probs, "pol":pol_sg, "supports":active_sg})
 
     #if pol.size < 50:
     #    print("Calculated robust policy is:")
@@ -368,6 +456,8 @@ def run_all(args):
         emp_violation = MC_sampler(model, args["MC_samples"], res_sg, pol_sg) 
         print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
     print("\n\n")
+    
+    plt.show()
 
 def test_support_num(args):
     model = args["model"]

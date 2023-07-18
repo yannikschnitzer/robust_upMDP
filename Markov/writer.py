@@ -385,3 +385,112 @@ class PRISM_io:
                     str(java_memory) + "g "+model_file+" -pf '"+spec+"' "+options
         subprocess.Popen(command, shell=True).wait()
         return self.read()
+
+class PRISM_grad(PRISM_io):
+    def __init__(self, _model, _N=-1, input_folder='input', output_folder='output', _horizon="infinite"):
+        self.model = _model
+        self.explicit = False
+        self.N = _N
+        if _horizon != "infinite":
+            self.horizon = str(N) + "_steps"
+        else:
+            self.horizon = _horizon
+       
+        in_folder = input_folder + "/" + _model.Name + "_" + _horizon 
+        out_folder = output_folder + "/" + _model.Name + "_" + _horizon 
+        input_prefix = in_folder + "/model" 
+        
+        if not os.path.exists(out_folder):
+            os.makedirs(out_folder+'/')
+        if not os.path.exists(in_folder):
+            os.makedirs(in_folder+'/')
+        
+        self.prism_filename = input_prefix + ".prism"
+        self.spec_filename = input_prefix + ".pctl"
+        
+        file_prefix = output_folder + "/PRISM_out"
+        
+        self.vector_filename = file_prefix + "_vector.csv"
+        self.policy_filename = file_prefix + "_policy.csv"
+        self.opt_thresh = True
+        self.thresh = 0.5
+        self.max = True
+        self.spec = "until"
+
+    
+    def _write(self):
+        m = self.model
+        header = 'dtmc\n\n'
+        self.write_file(header, self.prism_filename)
+        pol_params = []
+        for s in m.States:
+            if s != self.state:
+                if len(m.Enabled_actions[s]) > 1:
+                    for a in m.Enabled_actions[s]:
+                        pol_params.append("const double pi_{}_{};".format(s,a))
+        param_string = '\n'.join(pol_params)
+        self.write_file(param_string, self.prism_filename, 'a')
+
+        self.write_file("module main\n\n", self.prism_filename, 'a')
+        self.write_file("\ts : [{}..{}] init {};\n\n".format(0,m.States[-1],m.Init_state), 
+                         self.prism_filename, 
+                         'a')
+        state_str_list = []
+        for s in m.States:
+            state_str = "\t[] s={} -> ".format(s)
+            trans_list = []
+            if s != self.state:
+                if len(m.Enabled_actions[s]) == 1:
+                    for i, s_prime in enumerate(m.trans_ids[s][0]):
+                        trans_list.append("{} : (s'={})".format(
+                            dec_round(m.Transition_probs[s][0][i],6), s_prime))
+                else:
+                    s_primes = {}
+                    trans_probs = []
+                    for a_i, a in enumerate(m.Enabled_actions[s]):
+                        for s_prime in m.trans_ids[s][a_i]:
+                            if s_prime in s_primes:
+                                s_primes[s_prime].append(a_i)
+                            else:
+                                s_primes[s_prime] = [a_i]
+                    for s_prime in s_primes:
+                        state_trans_probs = []
+                        for a_i, a in enumerate(m.Enabled_actions[s]):
+                            if a_i in s_primes[s_prime]:
+                                param = "pi_{}_{}".format(s, a)
+                                ind = m.trans_ids[s][a_i].index(s_prime)
+                                state_trans_probs.append("{}*{}".format(param, dec_round(m.Transition_probs[s][a_i][ind],6)))
+                        trans_probs.append("+".join(state_trans_probs))
+                        
+
+                    trans_list = ["{} : (s'={})".format(prob,s_prime) for prob, s_prime in 
+                                  zip(trans_probs, s_primes.keys())]
+            else:
+                a = self.act
+                a_i = m.Enabled_actions[s].index(a)
+                for i, s_prime in enumerate(m.trans_ids[s][a_i]):
+                    trans_list.append("{} : (s'={})".format(
+                        dec_round(m.Transition_probs[s][a_i][i],6), s_prime))
+            state_str += " + ".join(trans_list)
+            state_str += ';'
+            state_str_list.append(state_str)
+        self.write_file('\n'.join(state_str_list),self.prism_filename,'a')
+        self.write_file("\nendmodule\n\n", self.prism_filename, 'a')
+        for i, label in enumerate(m.Labels):
+            if label != "init":
+                label_str = "label \"{}\" = ".format(label)
+                s_list = []
+                for labelled_s in m.Labelled_states[i]:
+                    s_list.append("s={}".format(labelled_s))
+                label_str += '|'.join(s_list)
+                label_str += ";\n"
+                self.write_file(label_str, self.prism_filename, 'a')
+    
+    def solve(self):
+        prism_program = stormpy.parse_prism_program(self.prism_filename)
+        properties = stormpy.parse_properties_for_prism_program(self.model.Formulae[0], prism_program)
+        model = stormpy.build_parametric_model(prism_program, properties)
+
+        init = model.initial_states[0]
+        res = stormpy.model_checking(model, properties[0])
+        return res.at(init), res, None
