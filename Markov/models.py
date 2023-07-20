@@ -243,7 +243,7 @@ class storm_upMDP:
         out.mdp = sample
         out.props = self.props
         out.Init_state = self.Init_state
-        
+
         times.append(timer()-start_time)
         out.Transition_probs = self.Transition_probs
         states = sample.states
@@ -269,6 +269,7 @@ class storm_upMDP:
         out.Formulae = self.Formulae
         out.opt = self.opt
         out.params = params
+        out.Name = self.Name
         #print(times)
         return out
     

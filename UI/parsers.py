@@ -98,6 +98,7 @@ def parse_model(flag, opts):
             bisim="strong"
         params, storm_model, props, f = storm_ui.load_problem(model_f,spec_f, bisim)
         model = convert.parse(storm_model, params, model_f, props,f, wind)
+        model.Name = model_name
     return model
 
 def parse_bool(flag):

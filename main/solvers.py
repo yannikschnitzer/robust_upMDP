@@ -13,6 +13,17 @@ import os
 import matplotlib.pyplot as plt
 import pycarl
 
+import base64
+def b64(s):
+    s = int(s)
+    if s > 4095:
+        start = -4
+    elif s > 63:
+        start = -3
+    else:
+        start = -2
+    return str(base64.b64encode(s.to_bytes(length=6,byteorder="big")))[start:-1]
+
 def load_samples(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
@@ -96,64 +107,118 @@ def test_pol2(model, pol, paramed_models, trans_arr):
     return sum(ss[model.Labelled_states[-1]])
 
 def calc_param_grad(model, sample, paramed_model = None):
+    print("Calculating parameterised gradient")
     num_states = len(model.States)
     num_acts = len(model.Actions)
     grad = {}
 
-    for s in model.States:
-        if len(model.Enabled_actions[s]) > 1:
-            for a in model.Enabled_actions[s]:
-                tic = time.perf_counter()
-                
-                if paramed_model is not None:
-                    test_MDP = model.fix_params(sample)
+    tic = time.perf_counter()
+    
+    if paramed_model is not None:
+        test_MDP = model.fix_params(sample)
 
-                true_probs = []
-                pols = []
-                if model.opt == "max":
-                    wc = 1
-                else:
-                    wc = 0
-                time_start = time.perf_counter()
-                if paramed_model is None:
-                    test_MDP = model.fix_params(sample)
-                else:
-                    test_MDP.Transition_probs = paramed_model
-                
-                time_fix_params = time.perf_counter()
+    true_probs = []
+    pols = []
+    if model.opt == "max":
+        wc = 1
+    else:
+        wc = 0
+    time_start = time.perf_counter()
+    if paramed_model is None:
+        test_MDP = model.fix_params(sample)
+    else:
+        test_MDP.Transition_probs = paramed_model
+    
+    time_fix_params = time.perf_counter()
+    
+    time_for_fixing_param = time_fix_params -time_start
+    logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
 
-                time_fix_pol = time.perf_counter()
-                IO = writer.PRISM_grad(test_MDP)
-                IO.state = s
-                IO.act = a
-                IO.write()
-                
-                res, all_res, sol_pol = IO.solve()
-                
-                grad[(s,a)] = res
+    IO = writer.PRISM_grad(test_MDP)
+    IO.write()
+    
+    time_write = time.perf_counter()
+    time_for_writing = time_write-time_fix_params
+    logging.debug("Writing {:.3f}s".format(time_for_writing))
 
-                time_end = time.perf_counter()
-                time_for_fixing_param = time_fix_params -time_start
-                time_for_fixing_pol = time_fix_pol -time_fix_params
-                time_for_solving = ((time_end-time_fix_pol))
-                logging.debug("solving {:.3f}s".format(time_for_solving))
-                logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
-                logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
+    param_res, all_res, sol_pol = IO.solve()
 
-                toc = time.perf_counter()
-                logging.debug("Time to find gradient: " + str(toc-tic))
+    time_end = time.perf_counter()
+    time_for_solving = ((time_end-time_write))
+    logging.debug("solving {:.3f}s".format(time_for_solving))
+
+    toc = time.perf_counter()
+    logging.debug("Time to find gradient: " + str(toc-tic))
+    return param_res
+
+def find_grad(paramed, pol, enabled):
+    grad = np.zeros_like(pol)
+    if type(paramed) == tuple:
+        for s, row in enumerate(pol):
+            if len(enabled[s]) > 1:
+                for a in enabled[s]:
+                    numerical = ([],[])
+                    for i, elem in enumerate(paramed):
+                        numerical[i].append(1)
+                        for val in elem:
+                            if "_" in val:
+                                split = val.split("_")
+                                if len(split[1]) == 1:
+                                    s_b64 = "AAA" + split[1]
+                                elif len(split[1]) == 2:
+                                    s_b64 = "AA" + split[1]
+                                else:
+                                    s_b64 = "A" + split[1]
+                                state = int.from_bytes(base64.b64decode(s_b64),byteorder="big")
+                                
+                                b64s = str(base64.b64encode(bytes([s])))[2:4]
+                                act = int(split[2])
+                                if state == s:
+                                    if act != a:
+                                        numerical[i][-1] = 0
+                                else:
+                                    numerical[i][-1] *= pol[state, act]
+                            elif val == "+":
+                                numerical[i].append(1)
+                            else:
+                                numerical[i][-1] *= int(val)
+                    grad[s,a] = sum(numerical[0])/sum(numerical[1])
+    else:
+        instantiators = {}
+        one = pycarl.cln.Rational(1)
+        zero = pycarl.cln.Rational(0)
+        for s, row in enumerate(pol):
+            for a_i, a_val in enumerate(row):
+                instantiators["_{}_{}".format(b64(s),a_i)] = pycarl.cln.Rational(a_val)
+        for s, row in enumerate(pol):
+            if len(enabled[s]) > 1:
+                for a in enabled[s]:
+                   func = paramed
+                   func_vars = func.gather_variables()
+                   var_dict = {}
+                   for var in func_vars:
+                        split = var.name.split("_")
+                        if len(split[1]) == 1:
+                            s_b64 = "AAA" + split[1]
+                        elif len(split[1]) == 2:
+                            s_b64 = "AA" + split[1]
+                        else:
+                            s_b64 = "A" + split[1]
+                        state = int.from_bytes(base64.b64decode(s_b64),byteorder="big")
+                        act = int(split[2])
+                        if state == s:
+                            if act == a:
+                               var_dict[var] = one
+                            else:
+                               var_dict[var] = zero
+                        else:
+                            var_dict[var] = instantiators[var.name]
+                   grad[s,a] = float(func.evaluate(var_dict))
     return grad
 
-def find_grad(paramed, pol):
-    grad = np.zeros_like(pol)
-    instantiators = {}
-    for s, row in enumerate(pol):
-        for a_i, a_val in enumerate(row):
-            instantiators[pycarl.Variable("pi_{}_{}".format(s,a_i))] = pycarl.cln.Rational(a_val)
-    import pdb; pdb.set_trace() # Keep getting a segmentation fault when trying to evaluate??
 
-
-def solve_subgrad(samples, model, max_iters=100):
+def solve_subgrad(samples, model, max_iters=500):
+    solve_grad_param = True
     print("--------------------\nStarting subgradient descent")
     
     sample_trans_probs = []
@@ -175,6 +240,7 @@ def solve_subgrad(samples, model, max_iters=100):
 
     obj = cp.Minimize(cp.norm(projected-point))
     wc_hist = []
+    best_hist = []
     wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
     worst = np.argwhere(true_probs[:,model.Init_state]==wc)
     worst = np.random.choice(worst.flatten())
@@ -183,6 +249,12 @@ def solve_subgrad(samples, model, max_iters=100):
     best_worst_pol = test_pol(model, [samples[worst]])[2][0]
     test_wc, test_probs, _ = test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
     test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
+    
+    if model.opt == "max":
+        best = 0
+    else:
+        best = 1
+
     if worst in test_worst:
         print("Worst case holds with deterministic policy, deterministic is optimal")
         return test_wc, best_worst_pol, test_wc
@@ -190,41 +262,47 @@ def solve_subgrad(samples, model, max_iters=100):
         time_start = time.perf_counter()
         
         old_pol = np.copy(pol)
-        step = 1/(i+1)
+        step = 1/(i+2)
         #step = 10
-        if worst not in param_grads:
-            param_grads[worst] = calc_param_grad(model, samples[worst], sample_trans_probs[worst]) 
-        grad = find_grad(param_grads[worst], pol)
+        if solve_grad_param:
+            if worst not in param_grads:
+                param_grads[worst] = calc_param_grad(model, samples[worst], sample_trans_probs[worst]) 
+            grad = find_grad(param_grads[worst], pol, model.Enabled_actions)
+            
+            nonzero_grad = grad[np.nonzero(grad)]
+            min_elem = min(nonzero_grad)
+            max_elem = max(nonzero_grad)
 
-        grad = np.zeros_like(pol)
-        min_elem = 1 
-        max_elem = 0
-        for s in model.States:
-            if len(model.Enabled_actions[s]) > 1:
-                for a in model.Enabled_actions[s]:
-                    grad_finder = np.copy(pol)
-                    grad_finder[s] = 0
-                    grad_finder[s,a] = 1
-                    tic = time.perf_counter()
-                    new = test_pol(model, 
-                                         [samples[worst]], 
-                                         grad_finder, 
-                                         paramed_models = [sample_trans_probs[worst]])[0] 
-                    grad[s,a] = new 
-                    toc = time.perf_counter()
-                    logging.debug("Time to find gradient: " + str(toc-tic))
-                    min_elem = min(new, min_elem)
-                    max_elem = max(new, max_elem)
-                    #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
-                    #tac = time.perf_counter()
-                    #print("new version: " + str(tac-toc))
-        #grad_norm = np.linalg.norm(grad, ord=np.inf)
-        #import pdb; pdb.set_trace()
+        else:
+            grad = np.zeros_like(pol)
+            min_elem = 1 
+            max_elem = 0
+            for s in model.States:
+                if len(model.Enabled_actions[s]) > 1:
+                    for a in model.Enabled_actions[s]:
+                        grad_finder = np.copy(pol)
+                        grad_finder[s] = 0
+                        grad_finder[s,a] = 1
+                        tic = time.perf_counter()
+                        new = test_pol(model, 
+                                             [samples[worst]], 
+                                             grad_finder, 
+                                             paramed_models = [sample_trans_probs[worst]])[0] 
+                        grad[s,a] = new 
+                        toc = time.perf_counter()
+                        logging.debug("Time to find gradient: " + str(toc-tic))
+                        min_elem = min(new, min_elem)
+                        max_elem = max(new, max_elem)
+                        #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
+                        #tac = time.perf_counter()
+                        #print("new version: " + str(tac-toc))
+            #grad_norm = np.linalg.norm(grad, ord=np.inf)
+            ##import pdb; pdb.set_trace()
         nonzero_inds = np.nonzero(grad)
         scaled_grad = np.copy(grad)
         scaled_grad[nonzero_inds] -= min_elem
         scaled_grad /= max_elem-min_elem
-        #scaled_grad = grad / grad_scale
+        
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":
@@ -261,11 +339,21 @@ def solve_subgrad(samples, model, max_iters=100):
         logging.debug("Time for projection step: {:.3f}".format(time_proj))
         wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        #import pdb; pdb.set_trace()
         worst = np.random.choice(worst.flatten())
         wc_hist.append(wc)
+        if model.opt == "max":
+            if wc > best:
+                best = wc
+                best_pol = pol
+        else:
+            if wc < best:
+                best = wc
+                best_pol = pol
+        best_hist.append(best)
         logging.info("Current value: {:.3f}, with sample {}".format(wc, worst))
         logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
-    return wc, pol, wc_hist
+    return best, best_pol, best_hist
 
 def find_all_pols(model):
     base_vec = [False for i in model.Actions]
