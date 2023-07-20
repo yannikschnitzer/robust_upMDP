@@ -3,15 +3,15 @@ import cvxpy as cp
 import Markov.writer as writer
 from PAC.funcs import *
 
-def calc_probs(model, N):
+def calc_probs(model, samples):
     probs = []
     min_prob = 1
     discarded = 0
-    for i in tqdm(range(N)):
-        sample = model.sample_MDP()
+    for sample in samples:
         
+        test_MDP = model.fix_params(sample)
         #IO = writer.PRISM_io(sample)
-        IO = writer.stormpy_io(sample)
+        IO = writer.stormpy_io(test_MDP)
         IO.write()
         #IO.solve_PRISM()
         res, all_res, _ = IO.solve()
@@ -75,10 +75,10 @@ def optimise(rho, probs, opt):
     
     return tau, etas
 
-def run_all(args):
+def run_all(args, samples):
     model = args["model"]
     print("Running code for individual optimal policies \n --------------------")
-    probs = calc_probs(model, args["num_samples"])
+    probs = calc_probs(model, samples)
     min_prob, discarded = discard(args["lambda"], probs, model.opt)
     tau, etas = optimise(args["rho"], probs, model.opt)
     [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))

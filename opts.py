@@ -4,7 +4,7 @@ import Models.test as test
 opt_settings = {"model":{"parser":parse_model, 
                          "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", "consensus_2",
                                   "consensus_4", "brp_256", "brp_16", "brp_32", "crowds_10",
-                                  "crowds_15", "nand_10", "nand_25"]], 
+                                  "crowds_15", "nand_10", "nand_25", "hol"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },
@@ -85,5 +85,23 @@ opt_settings = {"model":{"parser":parse_model,
                         "args":[True],
                         "flags":["--load_res"],
                         "default":None
+                        },
+                "test_supps":{
+                        "parser":parse_bool,
+                        "args":[],
+                        "flags":["--test_support"],
+                        "default":False
+                        },
+                "sg_itts":{
+                        "parser":parse_num,
+                        "args":[int, 1],
+                        "flags":["--sg_itt"],
+                        "default":500
+                        },
+                "FSP_itts":{
+                        "parser":parse_num,
+                        "args":[int, 1],
+                        "flags":["--sg_itt"],
+                        "default":10000
                         },
                 }
