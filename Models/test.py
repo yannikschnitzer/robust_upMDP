@@ -102,6 +102,8 @@ def get_model_2():
 
     Test_Model.Labels = ["init", "reached"]
     Test_Model.Labelled_states = [[0,1,2,3,4],[3]]
+    Test_Model.Labels = ["init", "reached"]
+    Test_Model.Labelled_states = [[0],[3]]
 
     Test_Model.Name = "test"
         

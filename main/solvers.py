@@ -39,7 +39,10 @@ def test_pol(model, samples, pol=None, paramed_models = None):
             test_model = test_MDP
         time_fix_pol = time.perf_counter()
         IO = writer.stormpy_io(test_model)
+        #IO = writer.PRISM_io(test_model)
         IO.write()
+        time_write = time.perf_counter()
+
         res, all_res, sol_pol = IO.solve()
         pols.append(sol_pol)
         if model.opt == "max":
@@ -48,17 +51,58 @@ def test_pol(model, samples, pol=None, paramed_models = None):
         else:
             if wc<res[0]:
                 wc = res[0]
-        true_probs.append(all_res[0])
+        true_probs.append(all_res) # all_res[0] if using stormpy?
 
         time_end = time.perf_counter()
         time_for_fixing_param = time_fix_params -time_start
         time_for_fixing_pol = time_fix_pol -time_fix_params
-        time_for_solving = ((time_end-time_fix_pol))
+        time_for_writing = time_write - time_fix_pol
+        time_for_solving = ((time_end-time_write))
         logging.debug("solving {:.3f}s".format(time_for_solving))
         logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
+        logging.debug("writing {:.3f}s".format(time_for_writing))
         logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
     true_probs = np.array(true_probs)
     return wc, true_probs, pols
+
+def find_grad(model, pol, worst_sample):
+    grad = np.zeros_like(pol)
+    min_elem = 1 
+    max_elem = 0
+    test_MDP = model.fix_params(worst_sample)
+    nom_MC = test_MDP.fix_pol(pol)
+    nom_ids = copy.copy(nom_MC.trans_ids)
+    nom_probs = copy.copy(nom_MC.Transition_probs)
+    for s in model.States:
+        if len(model.Enabled_actions[s]) > 1:
+            nom_MC.trans_ids = copy.copy(nom_ids)
+            nom_MC.Transition_probs = copy.copy(nom_probs)
+            for a in model.Enabled_actions[s]:
+                tic = time.perf_counter()
+                grad_finder = np.zeros(len(model.Actions))
+                grad_finder[a] = 1
+                s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s)
+                nom_MC.trans_ids[s] = s_primes
+                nom_MC.Transition_probs[s] = s_probs
+                IO = writer.stormpy_io(nom_MC)
+                #IO = writer.PRISM_io(test_model)
+                IO.write()
+                time_write = time.perf_counter()
+
+                res, _, _ = IO.solve()
+                grad[s,a] = res[0]
+                toc = time.perf_counter()
+                logging.debug("Time to find gradient: " + str(toc-tic))
+                min_elem = min(res[0], min_elem)
+                max_elem = max(res[0], max_elem)
+                #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
+                #tac = time.perf_counter()
+                #print("new version: " + str(tac-toc))
+    nonzero_inds = np.nonzero(grad)
+    scaled_grad = np.copy(grad)
+    scaled_grad[nonzero_inds] -= min_elem
+    scaled_grad /= max_elem-min_elem
+    return grad
 
 def solve_subgrad(samples, model, max_iters=500, quiet=False):
     if not quiet:
@@ -89,20 +133,27 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
     obj = cp.Minimize(cp.norm(projected-point))
     wc_hist = []
     best_hist = []
+    tic = time.perf_counter()
     wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
     worst = np.argwhere(true_probs[:,model.Init_state]==wc)
     worst = np.random.choice(worst.flatten())
-   
+    toc = time.perf_counter()
+    logging.debug("Time for finding worst case: {:.3f}s".format(toc-tic)) # This is also done every iteration, could be sped up but takes ~6/1500 the time
     best_worst_pol = test_pol(model, [samples[worst]])[2][0]
     test_wc, test_probs, _ = test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
     test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
-    
+    pol = 0.1*pol + 0.9*best_worst_pol # a nicer start point
+    wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
+    worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+    worst = np.random.choice(worst.flatten())
+
     if model.opt == "max":
         best = 0
     else:
         best = 1
 
     if worst in test_worst:
+        import pdb; pdb.set_trace()
         if not quiet:
             print("Worst case holds with deterministic policy, deterministic is optimal")
         return test_wc, best_worst_pol, test_wc, test_worst
@@ -112,41 +163,16 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
         old_pol = np.copy(pol)
         step = 1/(i+1)
         #step = 10
-        grad = np.zeros_like(pol)
-        min_elem = 1 
-        max_elem = 0
-        for s in model.States:
-            if len(model.Enabled_actions[s]) > 1:
-                for a in model.Enabled_actions[s]:
-                    grad_finder = np.copy(pol)
-                    grad_finder[s] = 0
-                    grad_finder[s,a] = 1
-                    tic = time.perf_counter()
-                    new = test_pol(model, 
-                                         [samples[worst]], 
-                                         grad_finder, 
-                                         paramed_models = [sample_trans_probs[worst]])[0] 
-                    grad[s,a] = new 
-                    toc = time.perf_counter()
-                    logging.debug("Time to find gradient: " + str(toc-tic))
-                    min_elem = min(new, min_elem)
-                    max_elem = max(new, max_elem)
-                    #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
-                    #tac = time.perf_counter()
-                    #print("new version: " + str(tac-toc))
+        grad = find_grad(model, pol, samples[worst])
         #grad_norm = np.linalg.norm(grad, ord=np.inf)
         ##import pdb; pdb.set_trace()
-        nonzero_inds = np.nonzero(grad)
-        scaled_grad = np.copy(grad)
-        scaled_grad[nonzero_inds] -= min_elem
-        scaled_grad /= max_elem-min_elem
         
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":
-            pol += step*scaled_grad
+            pol += step*grad
         else:
-            pol -= step*scaled_grad 
+            pol -= step*grad 
 
         for s in model.States:
             if len(model.Enabled_actions[s]) <= 1:
@@ -189,7 +215,7 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
                 best = wc
                 best_pol = pol
         best_hist.append(best)
-        logging.info("Current value: {:.3f}, with sample {}".format(wc, worst))
+        logging.info("Current value: {:.6f}, with sample {}".format(wc, worst))
         logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
     
     if model.opt == "max":
@@ -338,7 +364,7 @@ def run_all(args, samples):
   
         res_sg, pol_sg, sg_hist, active_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"])
         sg_active_num = active_sg.size 
-        plt.plot(sg_hist)
+        plt.loglog(sg_hist)
 
         print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
         [a_post_eps_L, a_post_eps_U] = \
@@ -353,7 +379,7 @@ def run_all(args, samples):
             res_FSP, pol_FSP, pols, a_post_support_num = FSP_solver(samples, model, max_iters=args["FSP_itts"])
             if active_sg.size != a_post_support_num:
                 print("Found {} supports using subgradient method, but {} using fictitious self play".format(active_sg.size, a_post_support_num))
-            print("----------------\nResult comparison:\nmatrix solver: {:.3f}\nFSP: {:.3f}\nSubgradient: {:.3f}".format(res_MNE, res_FSP, res_sg))
+            print("----------------\nResult comparison:\nmatrix solver: {:.13f}\nFSP: {:.13f}\nSubgradient: {:.13f}".format(res_MNE, res_FSP, res_sg))
             [a_post_eps_L, a_post_eps_U] = \
                 calc_eps_risk_complexity(args["beta"], N, a_post_support_num)
             print("Using game thoeretic methods found " + str(a_post_support_num) + " support constraints a posteriori")

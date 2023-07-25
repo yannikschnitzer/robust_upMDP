@@ -51,44 +51,79 @@ class MDP(base):
     """
     Class for standard MDPs
     """
-
+    
+    def fix_state_pol(self, pol, s):
+        num_enabled = len(self.Enabled_actions[s])
+        if num_enabled > 1:
+            num_enabled = len(self.Enabled_actions[s])
+            trans_arr = np.zeros((num_enabled,len(self.States)))
+            for i, inds in enumerate(self.trans_ids[s]):
+                trans_arr[i][inds] = self.Transition_probs[s][i]
+            res = pol[self.Enabled_actions[s]]@trans_arr
+            s_primes = list(np.argwhere(res).flatten())
+            s_trans_probs = list(res[s_primes])
+        else:
+            s_primes = list(chain(*self.trans_ids[s]))
+            s_trans_probs = self.Transition_probs[s][0]
+        return s_primes, s_trans_probs
+    
     def fix_pol(self, pol):
-        """
-        Fixes policy, returns an MC
-        """
+        new_trans_probs = []
+        new_trans_ids = []
+        parallel = True
+        for s in self.States:
+            s_primes, s_probs = self.fix_state_pol(pol[s],s)
+            new_trans_ids.append(s_primes)
+            new_trans_probs.append(s_probs)
         fixed_MC = MC()
         fixed_MC.States = self.States
         fixed_MC.Init_state = self.Init_state
-        trans_probs = []
-        trans_ids = []
-        for s in self.States:
-            if len(self.Enabled_actions[s])>0:
-                trans_probs_s = []
-                trans_ids_s = []
-                for act_num, act in enumerate(self.Enabled_actions[s]):
-                    act_prob = pol[s][act]
-                    trans_probs_s_a = [act_prob*p for p in self.Transition_probs[s][act_num]]
-                    trans_ids_s_a = self.trans_ids[s][act_num]
-                    for i, s_prime in enumerate(trans_ids_s_a):
-                        if s_prime in trans_ids_s:
-                            trans_probs_s[trans_ids_s.index(s_prime)] += trans_probs_s_a[i]
-                        else:
-                            trans_probs_s.append(trans_probs_s_a[i])
-                            trans_ids_s.append(s_prime)
-                trans_probs.append(trans_probs_s)
-                trans_ids.append(trans_ids_s)
-            else:
-                trans_probs.append([])
-                trans_ids.append([])
-        fixed_MC.Transition_probs = trans_probs
-        fixed_MC.trans_ids = trans_ids
+        fixed_MC.Transition_probs = new_trans_probs
+        fixed_MC.trans_ids = new_trans_ids
         fixed_MC.Name = self.Name
         fixed_MC.Formulae = self.Formulae
         fixed_MC.Labels = self.Labels
         fixed_MC.Labelled_states = self.Labelled_states
         fixed_MC.opt = self.opt
-
         return fixed_MC
+
+    #def fix_pol(self, pol):
+    #    """
+    #    Fixes policy, returns an MC
+    #    """
+    #    fixed_MC = MC()
+    #    fixed_MC.States = self.States
+    #    fixed_MC.Init_state = self.Init_state
+    #    trans_probs = []
+    #    trans_ids = []
+    #    for s in self.States:
+    #        if len(self.Enabled_actions[s])>0:
+    #            trans_probs_s = []
+    #            trans_ids_s = []
+    #            for act_num, act in enumerate(self.Enabled_actions[s]):
+    #                act_prob = pol[s][act]
+    #                trans_probs_s_a = [act_prob*p for p in self.Transition_probs[s][act_num]]
+    #                trans_ids_s_a = self.trans_ids[s][act_num]
+    #                for i, s_prime in enumerate(trans_ids_s_a):
+    #                    if s_prime in trans_ids_s:
+    #                        trans_probs_s[trans_ids_s.index(s_prime)] += trans_probs_s_a[i]
+    #                    else:
+    #                        trans_probs_s.append(trans_probs_s_a[i])
+    #                        trans_ids_s.append(s_prime)
+    #            trans_probs.append(trans_probs_s)
+    #            trans_ids.append(trans_ids_s)
+    #        else:
+    #            trans_probs.append([])
+    #            trans_ids.append([])
+    #    fixed_MC.Transition_probs = trans_probs
+    #    fixed_MC.trans_ids = trans_ids
+    #    fixed_MC.Name = self.Name
+    #    fixed_MC.Formulae = self.Formulae
+    #    fixed_MC.Labels = self.Labels
+    #    fixed_MC.Labelled_states = self.Labelled_states
+    #    fixed_MC.opt = self.opt
+
+    #    return fixed_MC
 
 class pMDP(MDP):
     """
@@ -138,25 +173,29 @@ class storm_MDP:
     Formulae = None
     opt = "max"
 
-    
+    def fix_state_pol(self, pol, s):
+        if len(self.mdp.states[s].actions) > 1:
+            num_enabled = len(self.Enabled_actions[s])
+            trans_arr = np.zeros((num_enabled,len(self.States)))
+            for i, inds in enumerate(self.trans_ids[s]):
+                trans_arr[i][inds] = self.Transition_probs[s][i]
+            res = pol[self.Enabled_actions[s]]@trans_arr
+            s_primes = list(np.argwhere(res).flatten())
+            s_trans_probs = list(res[s_primes])
+        else:
+            s_primes = list(chain(*self.trans_ids[s]))
+            s_trans_probs = self.Transition_probs[s][0]
+        return s_primes, s_trans_probs
+
 
     def fix_pol(self, pol):
         new_trans_probs = []
         new_trans_ids = []
         parallel = True
         for s in self.States:
-            if len(self.mdp.states[s].actions) > 1:
-                trans_arr = np.zeros((len(self.Enabled_actions[s]),len(self.States)))
-                for i, inds in enumerate(self.trans_ids[s]):
-                    trans_arr[i][inds] = self.Transition_probs[s][i]
-                res = pol[s][self.Enabled_actions[s]]@trans_arr
-                s_primes = list(np.argwhere(res).flatten())
-                new_trans_ids.append(s_primes)
-                s_trans_probs = list(res[s_primes])
-            else:
-                new_trans_ids.append(list(chain(*self.trans_ids[s])))
-                s_trans_probs = self.Transition_probs[s][0]
-            new_trans_probs.append(s_trans_probs)
+            s_primes, s_probs = self.fix_state_pol(pol[s],s)
+            new_trans_ids.append(s_primes)
+            new_trans_probs.append(s_probs)
         fixed_MC = MC()
         fixed_MC.States = self.States
         fixed_MC.Init_state = self.Init_state
@@ -275,25 +314,8 @@ class storm_upMDP:
     
 
     def sample_MDP(self):
-        #sample = storm_ui.sample_MDP(self.params, self.model, self.filename, self.weather)
         acc_params = self.param_sampler()
         sample = self.fix_params(acc_params)
-        #out = storm_MDP()
-        #out.mdp = sample
-        #out.props = self.props
-        #out.Init_state = self.Init_state
-      
-        #out.Transition_probs = [[[transition.value() for transition in action.transitions] for action in state.actions] for state in sample.states]
-        ##out.trans_ids = [[[transition.column for transition in action.transitions] for action in state.actions] for state in sample.states]
-        #out.trans_ids = self.trans_ids
-        #out.States = self.States
-        #out.Actions = self.Actions
-        #out.Enabled_actions = [[int(str(action)) for action in state.actions] for state in sample.states]
-        #out.Labels = self.Labels
-        #out.Labelled_states = self.Labelled_states
-        #out.Formulae = self.Formulae
-        #out.opt = self.opt
-        #out.params = acc_params
         return sample
 
     def get_trans_arr(self):

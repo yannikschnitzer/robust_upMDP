@@ -4,6 +4,7 @@ from tqdm import tqdm
 import math
 import numpy as np
 import stormpy
+import time
 
 def dec_round(num, decimals):
     """
@@ -94,7 +95,7 @@ class stormpy_io:
                         pol[s_num, act]  = 1
                 else:
                     pol = None
-                all_res.append([result.at(state) for state in self.model.States])
+                all_res += [result.at(state) for state in self.model.States]
                 res.append(result.at(self.mdp.initial_states[0]))
         else: 
             res = []
@@ -109,7 +110,7 @@ class stormpy_io:
                         pol[s_num, act]  = 1
                 else:
                     pol = None
-                all_res.append([result.at(state) for state in self.model.States])
+                all_res += [result.at(state) for state in self.model.States]
                 res.append(result.at(self.mdp.initial_states[0]))
         return res, all_res, pol
 
@@ -143,9 +144,10 @@ class PRISM_io:
         self.transition_filename = input_prefix + ".tra"
         self.all_filename = input_prefix + ".all"
 
-        file_prefix = output_folder + "/PRISM_out"
+        file_prefix = out_folder + "/PRISM_out"
         self.vector_filename = file_prefix + "_vector.csv"
-        self.policy_filename = file_prefix + "_policy.csv"
+        if self.model.Enabled_actions is not None:
+            self.policy_filename = file_prefix + "_policy.csv"
         self.opt_thresh = True
         self.thresh = 0.5
         self.max = True
@@ -169,83 +171,99 @@ class PRISM_io:
         """
         Reads the results of solving the prism files from earlier
         """
-        policy_file = self.policy_filename
-        vector_file = self.vector_filename
-        policy = np.genfromtxt(policy_file, delimiter=',', dtype='str')
-        if self.horizon != 'infinite':
-            policy = np.flipud(policy)
+        if self.model.Enabled_actions is not None:
+            policy_file = self.policy_filename
+            vector_file = self.vector_filename
+            policy = np.genfromtxt(policy_file, delimiter=',', dtype='str')
+            if self.horizon != 'infinite':
+                policy = np.flipud(policy)
 
-            if len(np.shape(policy)) > 1:
-                optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
-                optimal_reward = np.zeros(np.shape(policy)[1])
-                print(np.shape(optimal_policy))
-            else:
-                optimal_policy= np.zeros(tuple([1])+np.shape(policy))
-                optimal_reward = np.zeros(np.shape(policy)[0])
-
-            optimal_reward = np.genfromtxt(vector_file).flatten()
-            if not self.opt_thresh:
-                if self.max:
-                    optimal_reward = optimal_reward >= self.thresh
+                if len(np.shape(policy)) > 1:
+                    optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
+                    optimal_reward = np.zeros(np.shape(policy)[1])
+                    print(np.shape(optimal_policy))
                 else:
-                    optimal_reward = optimal_reward <= self.thresh
+                    optimal_policy= np.zeros(tuple([1])+np.shape(policy))
+                    optimal_reward = np.zeros(np.shape(policy)[0])
+
+                optimal_reward = np.genfromtxt(vector_file).flatten()
+                if not self.opt_thresh:
+                    if self.max:
+                        optimal_reward = optimal_reward >= self.thresh
+                    else:
+                        optimal_reward = optimal_reward <= self.thresh
 
 
-            if len(np.shape(policy)) > 1:
-                for i, row in enumerate(policy):
-                    for j, value in enumerate(row):
+                if len(np.shape(policy)) > 1:
+                    for i, row in enumerate(policy):
+                        for j, value in enumerate(row):
+                            if value != '':
+                                value_split = value.split('_')
+                                optimal_policy[i,j] = int(value_split[-1])
+                            else:
+                                optimal_policy[i,j] = -1
+                else:
+                    i = 0
+                    for j, value in enumerate(policy):
                         if value != '':
                             value_split = value.split('_')
                             optimal_policy[i,j] = int(value_split[-1])
                         else:
                             optimal_policy[i,j] = -1
             else:
-                i = 0
-                for j, value in enumerate(policy):
-                    if value != '':
-                        value_split = value.split('_')
-                        optimal_policy[i,j] = int(value_split[-1])
-                    else:
-                        optimal_policy[i,j] = -1
-        else:
-            if len(np.shape(policy)) > 1:
-                optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
-                optimal_reward = np.zeros(np.shape(policy)[1])
-                print(np.shape(optimal_policy))
-            else:
-                optimal_policy= np.zeros(np.shape(self.model.States))
-                optimal_reward = np.zeros(np.shape(policy)[0])
+                if len(np.shape(policy)) > 1:
+                    optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
+                    optimal_reward = np.zeros(np.shape(policy)[1])
+                    print(np.shape(optimal_policy))
+                else:
+                    optimal_policy= np.zeros(np.shape(self.model.States))
+                    optimal_reward = np.zeros(np.shape(policy)[0])
 
+                optimal_reward = np.genfromtxt(vector_file).flatten()
+                if not self.opt_thresh:
+                    if self.max:
+                        optimal_reward = optimal_reward >= self.thresh
+                    else:
+                        optimal_reward = optimal_reward <= self.thresh
+                    
+                for i, row in enumerate(policy):
+                    if i > 0:
+                        if row != '':
+                            row_split = row.split(' ')
+                            optimal_policy[int(row_split[0])] = int(row_split[-1].split('_')[-1])
+                        else:
+                            optimal_policy[i] = -1
+        else:
+            optimal_policy = None
+            vector_file = self.vector_filename
             optimal_reward = np.genfromtxt(vector_file).flatten()
             if not self.opt_thresh:
                 if self.max:
                     optimal_reward = optimal_reward >= self.thresh
                 else:
                     optimal_reward = optimal_reward <= self.thresh
-                
-            for i, row in enumerate(policy):
-                if i > 0:
-                    if row != '':
-                        row_split = row.split(' ')
-                        optimal_policy[int(row_split[0])] = int(row_split[-1].split('_')[-1])
-                    else:
-                        optimal_policy[i] = -1
+
         return optimal_policy, optimal_reward
     
     def _write_labels(self):
         
         labels = self.model.Labels
         # label_file_list = ['0="init" 1="deadlock" 2="reached" 3="critical"']
-        label_file_list = ['#DECLARATION',' '.join([label for i, label in enumerate(labels)]),'#END']
+        #label_file_list = ['#DECLARATION',' '.join([label for i, label in enumerate(labels)]),'#END']
+        label_file_list = [str(i) + '="' + label + '"' for i, label in enumerate(labels)]
+        label_file_list = [' '.join(label_file_list)]
 
         m = self.model
         substring = ['' for i in m.States]
         for i, s in enumerate(m.States):
-            substring[i] = str(i)
+            substring[i] = str(i) + ":"
 
+        labelled = [False for s in substring]
         for i, subset in enumerate(m.Labelled_states):
             for s in subset:
-                substring[s] += ' '+str(labels[i])
+                substring[s] += ' '+str(i)
+                labelled[s] = True
+        substring = [elem for i, elem in enumerate(substring) if labelled[i]]
         label_file_list += substring
 
         label_string = '\n'.join(label_file_list)
@@ -266,72 +284,94 @@ class PRISM_io:
 
     def _write_transitions(self):
         m = self.model
-        
-        nr_choices_absolute = 0
-        nr_transitions_absolute = 0
-        transition_file_list = []
-        
-        transition_file_list_states = ['' for i in m.States]
-        for i, s in enumerate(tqdm(m.States)):
-            choice = 0
-            selfloop = False
-            if len(m.Enabled_actions[i]) > 0:
-                subsubstring = ['' for j in m.Enabled_actions[i]]
+       
+        if m.Enabled_actions is not None: 
+            nr_choices_absolute = 0
+            nr_transitions_absolute = 0
+            transition_file_list = []
+            
+            transition_file_list_states = ['' for i in m.States]
+            for i, s in enumerate(m.States):
+                choice = 0
+                selfloop = False
+                if len(m.Enabled_actions[i]) > 0:
+                    subsubstring = ['' for j in m.Enabled_actions[i]]
 
-                for a_idx, a in enumerate(m.Enabled_actions[i]):
-                    action_label = "a_"+str(a)
-                    substring_start = str(i) + ' '+str(choice)
-                    
-                    prob_idxs = [j for j in m.trans_ids[i][a]]
-                   
-                    trans_strings = [str(dec_round(prob,6))
-                                                for prob in m.Transition_probs[i][a]]
-                    
-                    subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
-                                        for (j, prob) in zip(prob_idxs, trans_strings)]
+                    for a_idx, a in enumerate(m.Enabled_actions[i]):
+                        action_label = "a_"+str(a)
+                        substring_start = str(i) + ' '+str(choice)
+                        
+                        prob_idxs = [j for j in m.trans_ids[i][a]]
+                       
+                        trans_strings = [str(dec_round(prob,6))
+                                                    for prob in m.Transition_probs[i][a]]
+                        
+                        subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
+                                            for (j, prob) in zip(prob_idxs, trans_strings)]
 
-                    choice += 1
-                    nr_choices_absolute += 1
-                    nr_transitions_absolute += len(subsublist)
-                    subsubstring[a_idx] = '\n'.join(subsublist)
-            else:
-                if not selfloop:
-                    subsubstring = []
-                    action_label = "a_" + str(i)
-                    subsubstring += [str(i) +' ' + str(choice)+ ' ' +str(i)+\
-                                     ' 1.0  '+ action_label]
-                    nr_choices_absolute += 1
-                    choice += 1
-
-                    selfloop = True
-
-                    nr_transitions_absolute += len(subsubstring)
+                        choice += 1
+                        nr_choices_absolute += 1
+                        nr_transitions_absolute += len(subsublist)
+                        subsubstring[a_idx] = '\n'.join(subsublist)
                 else:
-                    subsubstring = []
-            substring = [subsubstring]
-            transition_file_list_states[i] = substring
-        
-        del(subsubstring)
-        del(substring)
-        flatten = lambda t: [item for sublist in t
-                                  for subsublist in sublist
-                                  for item in subsublist]
-        size_states = m.States.size
-        size_choices = nr_choices_absolute
-        size_transitions = nr_transitions_absolute
+                    if not selfloop:
+                        subsubstring = []
+                        action_label = "a_" + str(i)
+                        subsubstring += [str(i) +' ' + str(choice)+ ' ' +str(i)+\
+                                         ' 1.0  '+ action_label]
+                        nr_choices_absolute += 1
+                        choice += 1
 
-        model_size = {'States': size_states,
-                      'Choices': size_choices,
-                      'Transitions':size_transitions}
-        #header = str(size_states)+' '+str(size_choices)+' '+str(size_transitions)+'\n'
-        header = 'MdP\n'
+                        selfloop = True
 
-        self.write_file(header, self.transition_filename)
-        for sublist in tqdm(transition_file_list_states):
-            for subsublist in sublist:
-                for item in subsublist:
-                    self.write_file(item+'\n', self.transition_filename, 'a')
+                        nr_transitions_absolute += len(subsubstring)
+                    else:
+                            subsubstring = []
+                substring = [subsubstring]
+                transition_file_list_states[i] = substring
+            
+            del(subsubstring)
+            del(substring)
+            flatten = lambda t: [item for sublist in t
+                                      for subsublist in sublist
+                                      for item in subsublist]
+            size_states = len(m.States)
+            size_choices = nr_choices_absolute
+            size_transitions = nr_transitions_absolute
 
+            model_size = {'States': size_states,
+                          'Choices': size_choices,
+                          'Transitions':size_transitions}
+            header = str(size_states)+' '+str(size_choices)+' '+str(size_transitions)+'\n'
+            #header = 'MdP\n'
+
+            self.write_file(header, self.transition_filename)
+            for sublist in transition_file_list_states:
+                for subsublist in sublist:
+                    for item in subsublist:
+                        self.write_file(item+'\n', self.transition_filename, 'a')
+        else:
+            nr_transitions_absolute = 0
+            transition_file_list = []
+            
+            transition_file_list_states = ['' for i in m.States]
+            for i, s in enumerate(m.States):
+                
+                prob_idxs = [j for j in m.trans_ids[i]]
+                
+                trans_strings = [str(dec_round(prob,6))
+                                            for prob in m.Transition_probs[i]]
+                
+                subsublist = [str(i)+" "+str(j)+" "+prob
+                                    for (j, prob) in zip(prob_idxs, trans_strings)]
+
+                nr_transitions_absolute += len(subsublist)
+                transition_file_list.append('\n'.join(subsublist))
+            nr_states = len(m.States)
+            #nr_states = m.States.size
+            header = str(nr_states) + " " + str(nr_transitions_absolute) + '\n'
+            self.write_file(header, self.transition_filename)
+            self.write_file('\n'.join(transition_file_list), self.transition_filename, 'a')
 
     def _write_explicit(self):
         
@@ -363,15 +403,20 @@ class PRISM_io:
         self.write_file(specification, self.spec_filename)
         return specification
 
-    def solve_PRISM(self,java_memory=2, prism_folder="~/Downloads/prism-imc/prism"):
+    def solve(self,java_memory=8, prism_folder="~/code/prism-imc/prism"):
         """
         function for solving iMDP using PRISM
         """
         import subprocess
         spec = self.specification
+    
+        if self.model.Enabled_actions is not None:
+            options = ' -ex -exportadv "'+self.policy_filename+'"' + \
+                      ' -exportvector "'+self.vector_filename+'"'
+        else:
+            options = ""
+            #options = ' -ex -exportvector "'+self.vector_filename+'"'
 
-        options = ' -ex -exportadv "'+self.policy_filename+'"' + \
-                  ' -exportvector "'+self.vector_filename+'"'
 
         if self.explicit:
             model_file = '"'+self.all_filename+'"'
@@ -384,5 +429,20 @@ class PRISM_io:
 
             command = prism_folder + "/bin/prism -javamaxmem " + \
                     str(java_memory) + "g "+model_file+" -pf '"+spec+"' "+options
-        subprocess.Popen(command, shell=True).wait()
-        return self.read()
+        pre_command = time.perf_counter()
+        res = subprocess.run(command, shell=True, capture_output=True)
+        post_command = time.perf_counter()
+        if self.model.Enabled_actions is None:
+            pol_arr = None
+            prob = float(str(res.stdout).split("Result: ")[1].split(" ")[0])
+            all_probs = [prob] 
+        else:
+            pol, all_probs = self.read()
+            prob = all_probs[self.model.Init_state]
+            pol_arr = np.zeros((len(self.model.States), len(self.model.Actions)))
+            for s, a in enumerate(pol):
+                pol_arr[s,int(a)] = 1
+        post_read = time.perf_counter()
+        logging.debug("time solving {}".format(post_command-pre_command))
+        logging.debug("time reading {}".format(post_read-post_command))
+        return [prob], all_probs, pol_arr
