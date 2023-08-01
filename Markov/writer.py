@@ -150,7 +150,7 @@ class PRISM_io:
             self.policy_filename = file_prefix + "_policy.csv"
         self.opt_thresh = True
         self.thresh = 0.5
-        self.max = True
+        self.max = _model.opt == "max" 
         self.spec = "until"
 
     def write(self):
@@ -174,42 +174,19 @@ class PRISM_io:
         if self.model.Enabled_actions is not None:
             policy_file = self.policy_filename
             vector_file = self.vector_filename
-            policy = np.genfromtxt(policy_file, delimiter=',', dtype='str')
-            if self.horizon != 'infinite':
-                policy = np.flipud(policy)
-
-                if len(np.shape(policy)) > 1:
-                    optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
-                    optimal_reward = np.zeros(np.shape(policy)[1])
-                    print(np.shape(optimal_policy))
-                else:
-                    optimal_policy= np.zeros(tuple([1])+np.shape(policy))
-                    optimal_reward = np.zeros(np.shape(policy)[0])
-
+            policy = np.genfromtxt(policy_file, delimiter=':', dtype='str')
+            if self.horizon == 'infinite':
+                optimal_policy = np.zeros((len(self.model.States)))
+                for s in policy:
+                    act = int(s[1].split("_")[-1])
+                    optimal_policy[int(s[0])] = act
+                vector_file = self.vector_filename
                 optimal_reward = np.genfromtxt(vector_file).flatten()
                 if not self.opt_thresh:
                     if self.max:
                         optimal_reward = optimal_reward >= self.thresh
                     else:
                         optimal_reward = optimal_reward <= self.thresh
-
-
-                if len(np.shape(policy)) > 1:
-                    for i, row in enumerate(policy):
-                        for j, value in enumerate(row):
-                            if value != '':
-                                value_split = value.split('_')
-                                optimal_policy[i,j] = int(value_split[-1])
-                            else:
-                                optimal_policy[i,j] = -1
-                else:
-                    i = 0
-                    for j, value in enumerate(policy):
-                        if value != '':
-                            value_split = value.split('_')
-                            optimal_policy[i,j] = int(value_split[-1])
-                        else:
-                            optimal_policy[i,j] = -1
             else:
                 if len(np.shape(policy)) > 1:
                     optimal_policy= np.zeros(np.shape(policy)+tuple([2]))
@@ -417,7 +394,7 @@ class PRISM_io:
         spec = self.specification
     
         if self.model.Enabled_actions is not None:
-            options = ' -ex -exportadv "'+self.policy_filename+'"' + \
+            options = ' -ex -exportstrat "'+self.policy_filename+'"' + \
                       ' -exportvector "'+self.vector_filename+'"'
         else:
             options = ""

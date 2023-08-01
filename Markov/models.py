@@ -10,6 +10,7 @@ import stormpy.examples
 import stormpy.examples.files
 from time import perf_counter as timer
 from multiprocessing import Pool
+import copy
 
 class base:
     """
@@ -261,6 +262,68 @@ class storm_MDP:
 
 class storm_upMDP:
     opt = "max"
+    
+    def build_imdp(self, params):
+        if str(self.model.model_type)=='ModelType.DTMC':
+            instantiator = stormpy.pars.PDtmcInstantiator(self.model)
+        elif  str(self.model.model_type)=='ModelType.MDP':
+            instantiator = stormpy.pars.PMdpInstantiator(self.model)
+        else:
+            raise RuntimeError("Invalid model type (should be a pDTMC or pMDP).")
+        fixed_iMDP = iMDP()
+        fixed_iMDP.States = self.States
+        fixed_iMDP.Actions = self.Actions
+        fixed_iMDP.Init_state = self.Init_state
+        Transition_probs = copy.copy(self.Transition_probs)
+        start = True
+        for param in params:
+            sample = instantiator.instantiate(param)
+            states = sample.states
+            if start:
+                state_set = self.States
+                start = False
+            else:
+                state_set = self.paramed_states
+            for s in state_set:
+                state = states[s]
+                Transition_probs[s] =   [
+                                                [   
+                                                    (transition.value(),transition.value()) 
+                                                    if type(Transition_probs[s][a_id][s_prime_id]) is not tuple 
+                                                    else
+                                                    (min(Transition_probs[s][a_id][s_prime_id][0], transition.value()),max(Transition_probs[s][a_id][s_prime_id][1], transition.value()))
+                                                    for s_prime_id, transition in enumerate(action.transitions) 
+                                                ] 
+                                                for a_id, action in enumerate(state.actions)
+                                            ] 
+        
+        fixed_iMDP.Transition_probs = Transition_probs
+        fixed_iMDP.supports = set()
+        for i, param in enumerate(params):
+            sample = instantiator.instantiate(param)
+            states = sample.states
+            for s in self.paramed_states:
+                state = states[s]
+                for a_id, action in enumerate(state.actions):
+                    for s_prime_id, transition in enumerate(action.transitions):
+                        if transition.value() in Transition_probs[s][a_id][s_prime_id]:
+                            fixed_iMDP.supports.add(i)
+        fixed_iMDP.Labels = self.Labels
+        fixed_iMDP.Labelled_states = self.Labelled_states
+        fixed_iMDP.Name = self.Name
+        fixed_iMDP.Formulae = []
+        for formula in self.Formulae:
+            if "Pmax" in formula:
+                fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
+            elif "Pmin" in formula:
+                fixed_iMDP.Formulae.append("Pminmax"+formula[4:])
+        fixed_iMDP.Formulae = self.Formulae
+        fixed_iMDP.Enabled_actions = self.Enabled_actions
+        fixed_iMDP.trans_ids = self.trans_ids
+        fixed_iMDP.opt = self.opt
+        fixed_iMDP.params = params
+
+        return fixed_iMDP
     
     def param_sampler(self):
     
