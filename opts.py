@@ -104,4 +104,10 @@ opt_settings = {"model":{"parser":parse_model,
                         "flags":["--sg_itt"],
                         "default":10000
                         },
+                "file_write":{
+                        "parser":parse_bool,
+                        "args":[],
+                        "flags":["--file_out"],
+                        "default":False,
+                        },
                 }

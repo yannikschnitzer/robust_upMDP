@@ -125,12 +125,63 @@ class MDP(base):
 
     #    return fixed_MC
 
+class iMDP(MDP):
+    Transition_probs = None
+
 class pMDP(MDP):
     """
     Class for parametric MDPs
     Transition probabilities should now be functions over parameters
     """
-    
+    def build_imdp(self, params):
+        fixed_iMDP = iMDP()
+        fixed_iMDP.States = self.States
+        fixed_iMDP.Actions = self.Actions
+        fixed_iMDP.Init_state = self.Init_state
+        trans_probs = []
+        for s in self.States:
+            trans_probs_s = []
+            for a_id, a in enumerate(self.Enabled_actions[s]):
+                trans_probs_s_a = []
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                    min_p = 1
+                    max_p = 0
+                    for param in params:
+                        new_p = self.Transition_probs[s][a_id][s_prime_id](param)
+                        min_p = min(min_p, new_p)
+                        max_p = max(max_p, new_p)
+                    trans_probs_s_a.append((min_p, max_p))
+                trans_probs_s.append(trans_probs_s_a)
+            trans_probs.append(trans_probs_s)
+        fixed_iMDP.Transition_probs = trans_probs
+        fixed_iMDP.supports = set()
+        for s in self.States:
+            for a_id, a in enumerate(self.Enabled_actions[s]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                    if self.paramed[s][a_id][s_prime_id]:
+                        for i, param in enumerate(params):
+                            p = self.Transition_probs[s][a_id][s_prime_id](param)
+                            if p in trans_probs[s][a_id][s_prime_id]: 
+                                fixed_iMDP.supports.add(i) # if sample defines ub OR lb, might be support
+        fixed_iMDP.Labels = self.Labels
+        fixed_iMDP.Labelled_states = self.Labelled_states
+        fixed_iMDP.Name = self.Name
+        fixed_iMDP.Formulae = []
+        for formula in self.Formulae:
+            if "Pmax" in formula:
+                fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
+            elif "Pmin" in formula:
+                fixed_iMDP.Formulae.append("Pminmax"+formula[4:])
+        fixed_iMDP.Formulae = self.Formulae
+        fixed_iMDP.Enabled_actions = self.Enabled_actions
+        fixed_iMDP.trans_ids = self.trans_ids
+        fixed_iMDP.opt = self.opt
+        fixed_iMDP.params = params
+
+        return fixed_iMDP
+
+
+
     def fix_params(self, params):
         fixed_MDP = MDP()
         fixed_MDP.States = self.States

@@ -303,7 +303,7 @@ class PRISM_io:
                         
                         prob_idxs = [j for j in m.trans_ids[i][a]]
                        
-                        trans_strings = [str(dec_round(prob,6))
+                        trans_strings = ["[" + str(dec_round(prob[0],6)) + ","+str(dec_round(prob[1],6))+"]"
                                                     for prob in m.Transition_probs[i][a]]
                         
                         subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
@@ -397,9 +397,15 @@ class PRISM_io:
             #specification = "Pmaxmin=? [ F<="+str(horizonLen)+' "reached" ]'
         else:
             if self.max:
-                specification = 'Pmax=? [ F "reached" ]'
+                if type(model.Transition_probs[0][0][0]) == tuple:
+                    specification = 'Pmaxmin=? [ F "reached" ]'
+                else:
+                    specification = 'Pmax=? [ F "reached" ]'
             else:
-                specification = 'Pmin=? [ F "reached" ]'
+                if type(model.Transition_probs[0][0][0]) == tuple:
+                    specification = 'Pminmax=? [ F "reached" ]'
+                else:
+                    specification = 'Pmin=? [ F "reached" ]'
         self.write_file(specification, self.spec_filename)
         return specification
 
@@ -430,7 +436,10 @@ class PRISM_io:
             command = prism_folder + "/bin/prism -javamaxmem " + \
                     str(java_memory) + "g "+model_file+" -pf '"+spec+"' "+options
         pre_command = time.perf_counter()
-        res = subprocess.run(command, shell=True, capture_output=True)
+        if self.model.Enabled_actions is None:
+            res = subprocess.run(command, shell=True, capture_output=True)
+        else:
+            res = subprocess.Popen(command, shell=True).wait()
         post_command = time.perf_counter()
         if self.model.Enabled_actions is None:
             pol_arr = None

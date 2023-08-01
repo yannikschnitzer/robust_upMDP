@@ -491,7 +491,6 @@ def run_all(args, samples):
             print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
                 .format(a_post_eps_L, a_post_eps_U, args["beta"]))
             print("Optimal satisfaction probability is found to be {:.3f}".format(res_MNE))
-        import pdb; pdb.set_trace()
         if args["result_save_file"] is not None:
             save_data(args["result_save_file"], {"worst": wc, "probs":probs, "pol":pol_sg, "supports":active_sg})
 
