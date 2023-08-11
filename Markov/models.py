@@ -144,7 +144,7 @@ class pMDP(MDP):
             trans_probs_s = []
             for a_id, a in enumerate(self.Enabled_actions[s]):
                 trans_probs_s_a = []
-                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
                     min_p = 1
                     max_p = 0
                     for param in params:
@@ -158,7 +158,7 @@ class pMDP(MDP):
         fixed_iMDP.supports = set()
         for s in self.States:
             for a_id, a in enumerate(self.Enabled_actions[s]):
-                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
                     if self.paramed[s][a_id][s_prime_id]:
                         for i, param in enumerate(params):
                             p = self.Transition_probs[s][a_id][s_prime_id](param)
@@ -191,10 +191,10 @@ class pMDP(MDP):
         trans_probs = []
         for s in self.States:
             trans_probs_s = []
-            for a in self.Enabled_actions[s]:
+            for a_id, a in enumerate(self.Enabled_actions[s]):
                 trans_probs_s_a = []
-                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
-                    trans_probs_s_a.append(self.Transition_probs[s][a][s_prime_id](params))
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
+                    trans_probs_s_a.append(self.Transition_probs[s][a_id][s_prime_id](params))
                 trans_probs_s.append(trans_probs_s_a)
             trans_probs.append(trans_probs_s)
         fixed_MDP.Transition_probs = trans_probs
@@ -458,7 +458,7 @@ class upMDP(pMDP):
         arr  = np.zeros((len(self.States),len(self.Actions),len(self.States)))
         for s_id, s in enumerate(self.States):
             for a_id, a in enumerate(self.Enabled_actions[s]):
-                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a]):
+                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
                     if not self.paramed[s_id][a_id][s_prime_id]:
                         trans_prob = self.Transition_probs[s_id][a_id][s_prime_id](0)
                         arr[s][a][s_prime] = trans_prob

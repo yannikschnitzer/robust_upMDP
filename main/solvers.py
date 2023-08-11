@@ -467,6 +467,7 @@ def run_all(args, samples):
         N = args["num_samples"]
   
         res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"])
+        import pdb; pdb.set_trace()
         sg_active_num = active_sg.size 
         plt.loglog(info_sg["hist"])
 
@@ -478,6 +479,9 @@ def run_all(args, samples):
                 .format(a_post_eps_L, a_post_eps_U, args["beta"]))
 
         print("Optimal satisfaction probability is found to be {:.3f}".format(res_sg))
+        res = {"subgradient":res_sg}
+        pols = {"subgradient":pol_sg}
+
         if len(model.States)**len(model.Actions) < 200:
             res_MNE, pol_MNE, info_MNE = MNE_solver(samples, model)
             res_FSP, pol_FSP, a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
@@ -491,8 +495,13 @@ def run_all(args, samples):
             print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
                 .format(a_post_eps_L, a_post_eps_U, args["beta"]))
             print("Optimal satisfaction probability is found to be {:.3f}".format(res_MNE))
+            res["MNE"] = res_MNE
+            res["FSP"] = res_FSP
+            pols["MNE"] = pol_MNE
+            pols["FSP"] = pol_FSP
+
         if args["result_save_file"] is not None:
-            save_data(args["result_save_file"], {"worst": wc, "probs":probs, "pol":pol_sg, "supports":active_sg})
+            save_data(args["result_save_file"], {"res": res, "pols":pols})
 
         if pol_sg.size < 50:
             print("Calculated robust policy using subgradient methods is:")

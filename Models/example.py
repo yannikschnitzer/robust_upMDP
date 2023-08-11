@@ -3,6 +3,120 @@ import numpy as np
 import Models.trans_funcs as t_f
 import Models.samplers as samplers
 
+def get_robot(n=3):
+    Model = Markov.upMDP()
+
+    Model.States = np.array(range(n**4))
+    #States : [(Robot_location, janitor_location)] ignore transmission for now
+    Model.Actions = np.array(range(5))
+    Model.Init_state = 0+(n**2)//2
+    
+    Model.Labels = ["init", "crashed", "reached"]
+    Model.Labelled_states = [[Model.Init_state],[],[]]
+
+    Model.Enabled_actions = [[] for s in Model.States]
+    Model.trans_ids = []
+    Model.Transition_probs = []
+    Model.paramed = []
+
+    one = t_f.fixed(1)
+
+    Model.max_supports = 0
+    for s in Model.States:
+        s_trans_ids = []
+        s_trans_probs = []
+        s_paramed = []
+        robot = s//n**2
+        jan = s-robot*n**2
+
+        r_pos = (robot-n*(robot//n), robot//n)
+        j_pos = (jan-n*(jan//n), jan//n)
+        if r_pos != j_pos:
+            if r_pos != (n-1, n-1):
+                Model.max_supports += 1
+                for a in Model.Actions:
+                    valid = False
+                    if a == 0:
+                        # stay
+                        s_base = s
+                        valid = True
+                    elif a == 1:
+                        # move right
+                        if r_pos[0] < n-1:
+                            valid=True
+                            s_base = s+n**2
+                    elif a == 2:
+                        # move left
+                        if r_pos[0] > 0:
+                            valid=True
+                            s_base = s-n**2
+                    elif a == 3:
+                        # move up
+                        if r_pos[1] < n-1:
+                            valid=True
+                            s_base = s+n**3
+                    elif a == 4:
+                        # move down
+                        if r_pos[1] > 0:
+                            valid=True
+                            s_base = s-n**3
+
+                    if valid:
+                        Model.Enabled_actions[s].append(a)
+                        s_a_trans_ids = [s_base]
+                        s_a_trans_probs = ["fill"]
+                        s_a_paramed = [True]
+                        filled = []
+                        if j_pos[0] > 0:
+                            s_a_paramed.append(True)
+                            filled.append(1)
+                            s_a_trans_probs.append(t_f.softmax_multi(1))
+                            s_a_trans_ids.append(s_base-1)
+                        if j_pos[0] < n-1:
+                            s_a_paramed.append(True)
+                            filled.append(2)
+                            s_a_trans_probs.append(t_f.softmax_multi(2))
+                            s_a_trans_ids.append(s_base+1)
+                        if j_pos[1] > 0:
+                            s_a_paramed.append(True)
+                            filled.append(3)
+                            s_a_trans_ids.append(s_base-n)
+                            s_a_trans_probs.append(t_f.softmax_multi(3))
+                        if j_pos[1] < n-1:
+                            s_a_paramed.append(True)
+                            filled.append(4)
+                            s_a_trans_ids.append(s_base+n)
+                            s_a_trans_probs.append(t_f.softmax_multi(4))
+                        unfilled = [i for i in range(5) if i not in filled]
+                        s_a_trans_probs[0] = t_f.softmax_filler(unfilled)
+                        s_trans_ids.append(s_a_trans_ids)
+                        s_trans_probs.append(s_a_trans_probs)
+                        s_paramed.append(s_a_paramed)
+            else:
+                Model.Enabled_actions[s] = [0]
+                Model.Labelled_states[2].append(s)
+                s_trans_ids.append([s])
+                s_trans_probs.append([one])
+                s_paramed.append([False])
+        else:
+            s_paramed.append([False])
+            Model.Enabled_actions[s] = [0]
+            Model.Labelled_states[1].append(s)
+            s_trans_probs.append([one])
+            s_trans_ids.append([s])
+        Model.trans_ids.append(s_trans_ids)
+        Model.Transition_probs.append(s_trans_probs)
+        Model.paramed.append(s_paramed)
+    Model.Name = "Robot_model"
+        
+    Model.Formulae = ["Pmax=? [ F \"reached\"]"]
+    
+    #Hol_Model.param_sampler = samplers.gauss(np.array([0.5]), np.array([[0.2]]))
+    Model.param_sampler = samplers.uniform(5, [0.2, 0.2, 0.2, 0.2, 0.2], 
+                                              [0.5, 0.5, 0.5, 0.5, 0.5])
+    return Model
+
+
 def get_model():
     Hol_Model = Markov.upMDP()
 

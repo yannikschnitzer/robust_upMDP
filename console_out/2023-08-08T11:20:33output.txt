@@ -1,0 +1,27 @@
+Finding iMDP probability
+----------------
+A priori, violation probability is in the range [0.912, 1.000], with confidence 0.000
+Using iMDP found 200 possible support constraints
+Hence, a posteriori, violation probability is in the range [0.912, 1.000], with confidence 0.000
+Optimal satisfaction probability is found to be 0.000
+Running code for individual optimal policies 
+ --------------------
+Using results from risk and complexity, new sample will satisfy formula with bound 0.687, with a violation probability in the interval [0.000, 0.086] with confidence 0.000
+Upper bound on violation probability for formula with probability bounded by 0.683 is found to be 0.056, with confidence 0.000.
+Empirical violation rate is found to be 0.004
+
+
+
+Running code for robust optimal policy 
+ --------------------
+A priori upper bound on number of support constraints is 2671
+A priori bound on violation probability is nan with confidence 0.000
+--------------------
+Starting subgradient descent
+Using subgradient methods found 3 active constraints a posteriori
+Hence, a posteriori, violation probability is in the range [0.000, 0.109], with confidence 0.000
+Optimal satisfaction probability is found to be 0.180
+Empirical violation rate is found to be 0.029
+
+
+

@@ -1,7 +1,7 @@
 import logging
 import sys
 import Models.test as test
-import Models.example as hol
+import Models.example as ex
 import Models.converter as convert
 import Markov.storm_interface as storm_ui
 from os.path import exists
@@ -51,7 +51,9 @@ def parse_model(flag, opts):
     elif model_name == "test7":
         model = test.get_model_7()
     elif model_name == "hol":
-        model = hol.get_model()
+        model = ex.get_model()
+    elif model_name == "robot":
+        model = ex.get_robot()
     else:
         wind = None
         if model_name == "drone":

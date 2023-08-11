@@ -47,10 +47,12 @@ class stormpy_io:
             self_loop = True
             if self.model.Enabled_actions is not None:
                 builder.new_row_group(choices)
-                for a in self.model.Enabled_actions[s]:
-                    for i, s_prime in enumerate(self.model.trans_ids[s][a]):
-                        self_loop = False
-                        builder.add_next_value(choices, s_prime, self.model.Transition_probs[s][a][i])
+                for a in self.model.Actions:
+                    if a in self.model.Enabled_actions[s]:
+                        a_id = self.model.Enabled_actions[s].index(a)
+                        for i, s_prime in enumerate(self.model.trans_ids[s][a_id]):
+                            self_loop = False
+                            builder.add_next_value(choices, s_prime, self.model.Transition_probs[s][a_id][i])
                     choices += 1
                 if self_loop:
                     builder.add_next_value(choices, s, 1)
@@ -278,10 +280,10 @@ class PRISM_io:
                         action_label = "a_"+str(a)
                         substring_start = str(i) + ' '+str(choice)
                         
-                        prob_idxs = [j for j in m.trans_ids[i][a]]
+                        prob_idxs = [j for j in m.trans_ids[i][a_idx]]
                        
                         trans_strings = ["[" + str(dec_round(prob[0],6)) + ","+str(dec_round(prob[1],6))+"]"
-                                                    for prob in m.Transition_probs[i][a]]
+                                                    for prob in m.Transition_probs[i][a_idx]]
                         
                         subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
                                             for (j, prob) in zip(prob_idxs, trans_strings)]
