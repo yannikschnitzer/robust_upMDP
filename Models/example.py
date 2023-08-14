@@ -3,10 +3,10 @@ import numpy as np
 import Models.trans_funcs as t_f
 import Models.samplers as samplers
 
-def get_robot(n=3):
+def get_robot(n=3, jan_speed=2):
     Model = Markov.upMDP()
 
-    Model.States = np.array(range(n**4))
+    Model.States = np.array(range(jan_speed*(n**4)))
     #States : [(Robot_location, janitor_location)] ignore transmission for now
     Model.Actions = np.array(range(5))
     Model.Init_state = 0+(n**2)//2
@@ -26,40 +26,52 @@ def get_robot(n=3):
         s_trans_ids = []
         s_trans_probs = []
         s_paramed = []
-        robot = s//n**2
-        jan = s-robot*n**2
+        if s < n**4:
+            robot = s//n**2
+            jan = s-robot*n**2
+        else:
+            robot = (s-n**4)//n**2
+            jan = (s-n**4)-robot*n**2
+
 
         r_pos = (robot-n*(robot//n), robot//n)
         j_pos = (jan-n*(jan//n), jan//n)
-        if r_pos != j_pos:
-            if r_pos != (n-1, n-1):
+        if r_pos != j_pos: # not crashed
+            if r_pos != (n-1, n-1): # not reached goal
                 Model.max_supports += 1
                 for a in Model.Actions:
                     valid = False
-                    if a == 0:
-                        # stay
-                        s_base = s
-                        valid = True
-                    elif a == 1:
-                        # move right
-                        if r_pos[0] < n-1:
-                            valid=True
-                            s_base = s+n**2
-                    elif a == 2:
-                        # move left
-                        if r_pos[0] > 0:
-                            valid=True
-                            s_base = s-n**2
-                    elif a == 3:
-                        # move up
-                        if r_pos[1] < n-1:
-                            valid=True
-                            s_base = s+n**3
-                    elif a == 4:
-                        # move down
-                        if r_pos[1] > 0:
-                            valid=True
-                            s_base = s-n**3
+                    if s < n**4: # if can_move
+                        if a == 0:
+                            # stay
+                            s_base = s
+                            valid = True
+                        elif a == 1:
+                            # move right
+                            if r_pos[0] < n-1:
+                                valid=True
+                                s_base = s+n**2
+                        elif a == 2:
+                            # move left
+                            if r_pos[0] > 0:
+                                valid=True
+                                s_base = s-n**2
+                        elif a == 3:
+                            # move up
+                            if r_pos[1] < n-1:
+                                valid=True
+                                s_base = s+n**3
+                        elif a == 4:
+                            # move down
+                            if r_pos[1] > 0:
+                                valid=True
+                                s_base = s-n**3
+                        s_base += (jan_speed-1)*n**4
+                    else:
+                        if a == 0:
+                            valid = True
+                            s_base = s - n**4
+
 
                     if valid:
                         Model.Enabled_actions[s].append(a)
@@ -112,8 +124,8 @@ def get_robot(n=3):
     Model.Formulae = ["Pmax=? [ F \"reached\"]"]
     
     #Hol_Model.param_sampler = samplers.gauss(np.array([0.5]), np.array([[0.2]]))
-    Model.param_sampler = samplers.uniform(5, [0.2, 0.2, 0.2, 0.2, 0.2], 
-                                              [0.5, 0.5, 0.5, 0.5, 0.5])
+    Model.param_sampler = samplers.uniform(5, [1, 1, 1, -100, 1], 
+                                              [10, 10, 10, 100, 10])
     return Model
 
 

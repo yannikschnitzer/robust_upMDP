@@ -18,3 +18,10 @@ A priori upper bound on number of support constraints is 2671
 A priori bound on violation probability is 0.913 with confidence 0.000
 --------------------
 Starting subgradient descent
+Using subgradient methods found 6 active constraints a posteriori
+Hence, a posteriori, violation probability is in the range [0.000, 0.010], with confidence 0.000
+Optimal satisfaction probability is found to be 0.050
+Empirical violation rate is found to be 0.003
+
+
+

@@ -467,7 +467,6 @@ def run_all(args, samples):
         N = args["num_samples"]
   
         res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"])
-        import pdb; pdb.set_trace()
         sg_active_num = active_sg.size 
         plt.loglog(info_sg["hist"])
 
