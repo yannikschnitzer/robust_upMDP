@@ -5,6 +5,15 @@ import Models.example as ex
 import Models.converter as convert
 import Markov.storm_interface as storm_ui
 from os.path import exists
+from os import remove as rm
+
+import fileinput
+import shutil
+
+def replace_line(file, search_line, replacement):
+    for line in fileinput.input(file, inplace=True): 
+        print(line.rstrip().replace(search_line, replacement))
+
 
 def get_val(flag):
     ind = sys.argv.index(flag)
@@ -36,6 +45,7 @@ def parse_str(flag, opts):
 
 def parse_model(flag, opts):
     model_name = parse_str(flag, opts)
+    edited_files = []
     if model_name == "test":
         model = test.get_model()
     elif model_name == "test2":
@@ -62,48 +72,40 @@ def parse_model(flag, opts):
             spec_f = prefix + "spec.prctl"
             wind = "uniform"
             bisim = "none"
-        elif model_name == "consensus_2":
-            prefix = "Models/benchmarks/consensus/coin2"
-            model_f = prefix+".pm"
-            spec_f = prefix+".prctl"
-            bisim="strong"
-        elif model_name == "consensus_4":
-            prefix = "Models/benchmarks/consensus/coin4"
-            model_f = prefix+".pm"
-            spec_f = prefix+".prctl"
-            bisim="none"
-        elif model_name == "brp_256":
-            prefix = "Models/benchmarks/brp/brp"
-            model_f = prefix+"_256_5.pm"
-            spec_f = prefix+".prctl"
-            bisim="weak"
-        elif model_name == "brp_16":
-            raise NotImplementedError
-        elif model_name == "brp_32":
-            raise NotImplementedError
-        elif model_name == "crowds_10":
-            prefix = "Models/benchmarks/crowds/crowds"
-            model_f = prefix+"_10_5.pm"
-            spec_f = prefix+".prctl"
-            bisim="weak"
-        elif model_name == "crowds_15":
-            prefix = "Models/benchmarks/crowds/crowds"
-            model_f = prefix+"_15_7.pm"
-            spec_f = prefix+".prctl"
-            bisim="strong"
-        elif model_name == "nand_10":
-            prefix = "Models/benchmarks/nand/nand"
-            model_f = prefix+"_10_5.pm"
-            spec_f = prefix+".prctl"
-            bisim="weak"
-        elif model_name == "nand_25":
-            prefix = "Models/benchmarks/nand/nand"
-            model_f = prefix+"_25_5.pm"
-            spec_f = prefix+".prctl"
-            bisim="strong"
+        else:
+            from opts import inst_opts
+            inst = parse_str("--inst", inst_opts[model_name])
+            if model_name == "consensus":
+                split_inst = inst.split(",")
+                prefix = "Models/benchmarks2/consensus/coin" + split_inst[0]
+                model_f = prefix+".pm"
+                spec_f = prefix+".prctl"
+                if inst[0] == "2":
+                    bisim="strong"
+                else:
+                    bisim="none"
+                search = "const int K;"
+                replace = search[:-1] +"=" +split_inst[1] + ";"
+                edited_files.append(model_f)
+                shutil.copyfile(model_f, model_f+".old")
+                replace_line(model_f, search, replace)
+                import pdb; pdb.set_trace()
+        #elif model_name == "consensus_2":
+        #    prefix = "Models/benchmarks/consensus/coin2"
+        #    model_f = prefix+".pm"
+        #    spec_f = prefix+".prctl"
+        #    bisim="strong"
+        #elif model_name == "consensus_4":
+        #    prefix = "Models/benchmarks/consensus/coin4"
+        #    model_f = prefix+".pm"
+        #    spec_f = prefix+".prctl"
+        #    bisim="none"
         params, storm_model, props, f = storm_ui.load_problem(model_f,spec_f, bisim)
         model = convert.parse(storm_model, params, model_f, props,f, wind)
         model.Name = model_name
+    for f in edited_files:
+        rm(f)
+        shutil.move(f+".old", f)
     return model
 
 def parse_bool(flag):

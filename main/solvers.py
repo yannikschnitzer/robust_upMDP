@@ -165,8 +165,8 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
         #step = 10
         grad = find_grad(model, pol, samples[worst])
         #grad_norm = np.linalg.norm(grad, ord=np.inf)
-        ##import pdb; pdb.set_trace()
-        
+        import pdb; pdb.set_trace()
+         
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":

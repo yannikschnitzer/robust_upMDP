@@ -2,9 +2,8 @@ from UI.parsers import *
 import Models.test as test
 
 opt_settings = {"model":{"parser":parse_model, 
-                         "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", "consensus_2",
-                                  "consensus_4", "brp_256", "brp_16", "brp_32", "crowds_10",
-                                  "crowds_15", "nand_10", "nand_25", "hol", "robot"]], 
+                         "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", 
+                                  "consensus", "hol", "robot"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },
@@ -111,3 +110,9 @@ opt_settings = {"model":{"parser":parse_model,
                         "default":False,
                         },
                 }
+
+inst_opts = {"brp":["256,15","4096,5"],
+             "consensus": ["2,2","2,32","4,2","4,4"],
+             "sav": ["6,2,2", "100,10,10", "6,2,2", "10,3,3"],
+             "zeroconf": ["2", "5"]
+             }
