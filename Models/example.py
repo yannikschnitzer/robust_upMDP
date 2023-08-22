@@ -11,8 +11,8 @@ def get_robot(n=3, jan_speed=2):
     Model.Actions = np.array(range(5))
     Model.Init_state = 0+(n**2)//2
     
-    Model.Labels = ["init", "crashed", "reached"]
-    Model.Labelled_states = [[Model.Init_state],[],[]]
+    Model.Labels = ["init", "broken", "crashed", "reached"]
+    Model.Labelled_states = [[Model.Init_state],[],[],[]]
 
     Model.Enabled_actions = [[] for s in Model.States]
     Model.trans_ids = []
@@ -75,45 +75,51 @@ def get_robot(n=3, jan_speed=2):
 
                     if valid:
                         Model.Enabled_actions[s].append(a)
-                        s_a_trans_ids = [s_base]
-                        s_a_trans_probs = ["fill"]
-                        s_a_paramed = [True]
-                        filled = []
+                        s_a_trans_ids = [0, s_base]
+                        s_a_trans_probs = [t_f.softmax_multi(0), "fill"]
+                        s_a_paramed = [True, True]
+                        filled = [0]
                         if j_pos[0] > 0:
-                            s_a_paramed.append(True)
-                            filled.append(1)
-                            s_a_trans_probs.append(t_f.softmax_multi(1))
-                            s_a_trans_ids.append(s_base-1)
+                            if s_base-1 != 0:
+                                s_a_paramed.append(True)
+                                filled.append(1)
+                                s_a_trans_probs.append(t_f.softmax_multi(1))
+                                s_a_trans_ids.append(s_base-1)
                         if j_pos[0] < n-1:
-                            s_a_paramed.append(True)
-                            filled.append(2)
-                            s_a_trans_probs.append(t_f.softmax_multi(2))
-                            s_a_trans_ids.append(s_base+1)
+                            if s_base+1 != 0:
+                                s_a_paramed.append(True)
+                                filled.append(2)
+                                s_a_trans_probs.append(t_f.softmax_multi(2))
+                                s_a_trans_ids.append(s_base+1)
                         if j_pos[1] > 0:
-                            s_a_paramed.append(True)
-                            filled.append(3)
-                            s_a_trans_ids.append(s_base-n)
-                            s_a_trans_probs.append(t_f.softmax_multi(3))
+                            if s_base-n != 0:
+                                s_a_paramed.append(True)
+                                filled.append(3)
+                                s_a_trans_ids.append(s_base-n)
+                                s_a_trans_probs.append(t_f.softmax_multi(3))
                         if j_pos[1] < n-1:
-                            s_a_paramed.append(True)
-                            filled.append(4)
-                            s_a_trans_ids.append(s_base+n)
-                            s_a_trans_probs.append(t_f.softmax_multi(4))
+                            if s_base+n != 0:
+                                s_a_paramed.append(True)
+                                filled.append(4)
+                                s_a_trans_ids.append(s_base+n)
+                                s_a_trans_probs.append(t_f.softmax_multi(4))
                         unfilled = [i for i in range(5) if i not in filled]
-                        s_a_trans_probs[0] = t_f.softmax_filler(unfilled)
+                        s_a_trans_probs[1] = t_f.softmax_filler(unfilled)
                         s_trans_ids.append(s_a_trans_ids)
                         s_trans_probs.append(s_a_trans_probs)
                         s_paramed.append(s_a_paramed)
             else:
                 Model.Enabled_actions[s] = [0]
-                Model.Labelled_states[2].append(s)
+                Model.Labelled_states[3].append(s)
                 s_trans_ids.append([s])
                 s_trans_probs.append([one])
                 s_paramed.append([False])
         else:
             s_paramed.append([False])
             Model.Enabled_actions[s] = [0]
-            Model.Labelled_states[1].append(s)
+            Model.Labelled_states[2].append(s)
+            if s == 0:
+                Model.Labelled_states[1].append(s)
             s_trans_probs.append([one])
             s_trans_ids.append([s])
         Model.trans_ids.append(s_trans_ids)
@@ -122,10 +128,9 @@ def get_robot(n=3, jan_speed=2):
     Model.Name = "Robot_model"
         
     Model.Formulae = ["Pmax=? [ F \"reached\"]"]
-    
     #Hol_Model.param_sampler = samplers.gauss(np.array([0.5]), np.array([[0.2]]))
-    Model.param_sampler = samplers.uniform(5, [1, 1, 1, -100, 1], 
-                                              [10, 10, 10, 100, 10])
+    Model.param_sampler = samplers.uniform(5, [-10, 1, 1, 1, 1], 
+                                              [-50, 10, 10, 10, 10])
     return Model
 
 

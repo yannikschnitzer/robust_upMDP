@@ -104,7 +104,7 @@ def find_grad(model, pol, worst_sample):
     scaled_grad /= max_elem-min_elem
     return scaled_grad
 
-def solve_subgrad(samples, model, max_iters=500, quiet=False):
+def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
     if not quiet:
         print("--------------------\nStarting subgradient descent")
    
@@ -165,7 +165,6 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
         #step = 10
         grad = find_grad(model, pol, samples[worst])
         #grad_norm = np.linalg.norm(grad, ord=np.inf)
-        import pdb; pdb.set_trace()
          
         time_grads = time.perf_counter()-time_start
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
@@ -217,12 +216,16 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False):
         best_hist.append(best)
         logging.info("Current value: {:.6f}, with sample {}".format(wc, worst))
         logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
+        if len(wc_hist) >= 2:
+            change=abs(wc_hist[-2]-wc_hist[-1])
+            if change < tol:
+                break
         
     wc, true_probs, _ = test_pol(model, samples, best_pol, paramed_models = sample_trans_probs)
     if model.opt == "max":
-        active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+1e-3)
+        active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+0.01) # this tol is hard to tune...
     else:
-        active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-1e-3)
+        active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-0.01)
     info = {"hist":best_hist, "all":true_probs[:, model.Init_state]}
 
     return best, best_pol, active_sg, info
@@ -466,9 +469,11 @@ def run_all(args, samples):
 
         N = args["num_samples"]
   
-        res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"])
+        res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"])
         sg_active_num = active_sg.size 
-        plt.loglog(info_sg["hist"])
+        res_plot = [res_sg - i for i in info_sg["hist"]]
+        res_plot.pop(-1)
+        plt.loglog(res_plot)
 
         print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
         [a_post_eps_L, a_post_eps_U] = \
@@ -514,6 +519,7 @@ def run_all(args, samples):
         print("\n\n")
         
         plt.show()
+        import pdb; pdb.set_trace() 
 
 def test_support_num(args):
     print("Running code to test number support set calculation\n--------------")
