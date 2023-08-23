@@ -2,6 +2,7 @@ import numpy as np
 import cvxpy as cp
 import Markov.writer as writer
 from PAC.funcs import *
+import time
 
 def calc_probs(model, samples):
     probs = []
@@ -76,10 +77,13 @@ def optimise(rho, probs, opt):
     return tau, etas
 
 def run_all(args, samples):
+    start = time.perf_counter()
     model = args["model"]
     print("Running code for individual optimal policies \n --------------------")
     probs = calc_probs(model, samples)
     min_prob, discarded = discard(args["lambda"], probs, model.opt)
+    print("Time for finding probabilities and discarding: {:.3f}s".format(time.perf_counter()-start))
+
     tau, etas = optimise(args["rho"], probs, model.opt)
     [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
 

@@ -1,4 +1,5 @@
 import Markov.writer as writer
+import time
 from PAC.funcs import *
 
 def solve_imdp(model, samples):
@@ -10,6 +11,7 @@ def solve_imdp(model, samples):
     return res, pol, supports
 
 def run(args, samples):
+    start = time.perf_counter()
     N = args["num_samples"]
     model = args["model"]
     print("Finding iMDP probability\n----------------")
@@ -26,6 +28,7 @@ def run(args, samples):
     prob, pol, supports = solve_imdp(model, samples)
     [a_post_eps_L, a_post_eps_U] = \
         calc_eps_risk_complexity(args["beta"], N, supports)
+    print("Time for iMDP solving: {:.3f}s".format(time.perf_counter()-start))
 
     print("Using iMDP found " + str(supports) + " possible support constraints")
 
