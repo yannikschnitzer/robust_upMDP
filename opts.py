@@ -13,12 +13,6 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["-N"],
                     "default":100
                     },
-                "batch_size":{
-                    "parser":parse_num,
-                    "args":[int,1],
-                    "flags":["--batch"],
-                    "default":150
-                    },
                 "beta":{
                     "parser":parse_num,
                     "args":[float,0,1], 
@@ -109,10 +103,17 @@ opt_settings = {"model":{"parser":parse_model,
                         "flags":["--file_out"],
                         "default":False,
                         },
+                "save_figs":{
+                        "parser":parse_bool,
+                        "args":[],
+                        "flags":["--save_figs"],
+                        "default":False,
+                        }
                 }
 
 inst_opts = {"brp":["256,15","4096,5"],
              "consensus": ["2,2","2,32","4,2","4,4"],
              "sav": ["6,2,2", "100,10,10", "6,2,2", "10,3,3"],
-             "zeroconf": ["2", "5"]
+             "zeroconf": ["2", "5"],
+             "drone": ["uniform","x-neg-bias","y-pos-bias"], 
              }

@@ -12,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import pycarl
 from main.sampler import *
+import datetime
 
 def test_pol(model, samples, pol=None, paramed_models = None):
     num_states = len(model.States)
@@ -453,6 +454,7 @@ def FSP_solver(samples, model, max_iters = 100000):
     return res, pol_dist, np.sum(sample_dist >= 1e-4), info
 
 def run_all(args, samples):
+    start = datetime.datetime.now().isoformat().split('.')[0]
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
     if args["test_supps"]:
@@ -477,7 +479,30 @@ def run_all(args, samples):
         sg_active_num = active_sg.size 
         res_plot = [res_sg - i for i in info_sg["hist"]]
         res_plot.pop(-1)
-        plt.loglog(res_plot)
+        fig, ax = plt.subplots()
+        ax.loglog(res_plot)
+        ax.set_xlabel("Iteration")
+        ax.set_ylabel("Distance from final satisfaction probability")
+       
+
+        if args["save_figs"]:
+            fname = "plots/" + start + 'dist_fig'
+            plt.savefig(fname + ".png", bbox_inches="tight")
+            plt.savefig(fname + ".pdf", bbox_inches="tight")
+        else:
+            plt.show()
+        
+        fig2, ax2 = plt.subplots()
+        ax2.loglog(info_sg["hist"])
+        ax2.set_xlabel("Iteration")
+        ax2.set_ylabel("Satisfaction probability")
+        
+        if args["save_figs"]:
+            fname = "plots/" + start + 'prob_fig'
+            plt.savefig(fname + ".png", bbox_inches="tight")
+            plt.savefig(fname + ".pdf", bbox_inches="tight")
+        else:
+            plt.show()
 
         print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
         [a_post_eps_L, a_post_eps_U] = \
@@ -521,8 +546,6 @@ def run_all(args, samples):
             emp_violation = MC_sampler(model, args["MC_samples"], res_sg, pol_sg) 
             print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
         print("\n\n")
-        
-        plt.show()
 
 def test_support_num(args):
     print("Running code to test number support set calculation\n--------------")
