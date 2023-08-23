@@ -3,6 +3,7 @@ output/
 input/
 results/
 Results/
+console_out/
 __pycache__/
 *.pkl
 store/
