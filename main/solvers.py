@@ -105,6 +105,7 @@ def find_grad(model, pol, worst_sample):
     return scaled_grad
 
 def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
+    start = time.perf_counter()
     if not quiet:
         print("--------------------\nStarting subgradient descent")
    
@@ -214,13 +215,16 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
                 best = wc
                 best_pol = pol
         best_hist.append(best)
+        logging.info("Iteration: {}".format(i+1))
         logging.info("Current value: {:.6f}, with sample {}".format(wc, worst))
         logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
         if len(wc_hist) >= 2:
             change=abs(wc_hist[-2]-wc_hist[-1])
+            logging.info("Value change: {:.6f}".format(change))
             if change < tol:
                 break
-        
+    final_time = time.perf_counter() - start
+    print("Subgradient Descent took {:.3f}s".format(final_time))
     wc, true_probs, _ = test_pol(model, samples, best_pol, paramed_models = sample_trans_probs)
     if model.opt == "max":
         active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+0.01) # this tol is hard to tune...
@@ -344,7 +348,7 @@ def Feas_prog(payoffs, S_pol, S_adv):
     prob = cp.Problem(objective, constraints)
     try:
         result = prob.solve()
-    except SolverError:
+    except cp.error.SolverError:
         return None, None
     if result is not np.inf:
         return (pol_strat.value, adv_strat.value), val.value[0]
@@ -519,7 +523,6 @@ def run_all(args, samples):
         print("\n\n")
         
         plt.show()
-        import pdb; pdb.set_trace() 
 
 def test_support_num(args):
     print("Running code to test number support set calculation\n--------------")

@@ -52,7 +52,7 @@ opt_settings = {"model":{"parser":parse_model,
                 "debug_level":{
                     "parser":parse_debug,
                     "args":[],
-                    "flags":["-v","-d"],
+                    "flags":["-v","-d", "-vo", "-do"],
                     "default":None
                     },
                 "tol":{

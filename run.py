@@ -17,7 +17,8 @@ def main():
     samples = get_samples(args)
     start = datetime.datetime.now().isoformat().split('.')[0]
     if args["file_write"]:
-        sys.stdout = open("console_out/" + start + 'output.txt','wt')
+        fname = "console_out/" + start + 'output.txt'
+        sys.stdout = open(fname,'wt')
     int_run(args, samples)
     run_all(args, samples)
     robust_run(args, samples)

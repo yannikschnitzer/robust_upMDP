@@ -6,6 +6,7 @@ import Models.converter as convert
 import Markov.storm_interface as storm_ui
 from os.path import exists
 from os import remove as rm
+import datetime
 
 import fileinput
 import shutil
@@ -116,6 +117,15 @@ def parse_debug(flag):
         logging.basicConfig(level=logging.INFO)
     elif flag == "-d":
         logging.basicConfig(level=logging.DEBUG)
+    else:
+        start = datetime.datetime.now().isoformat().split('.')[0]
+        fname = "console_out/" + start + 'output.txt'
+        if flag == "-vo":    
+            logging.basicConfig(level=logging.INFO, filename = fname)
+        elif flag == "-do":
+            logging.basicConfig(level=logging.DEBUG, filename = fname)
+
+
 
 def parse_file(flag, load):
     filename = "store/"+parse_str(flag, None)
