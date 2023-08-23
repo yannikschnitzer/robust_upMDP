@@ -545,6 +545,9 @@ def run_all(args, samples):
         if args["MC"]:
             emp_violation = MC_sampler(model, args["MC_samples"], res_sg, pol_sg) 
             print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+        if args["MC_pert"]:
+            pert_violation = MC_perturbed(model, args["MC_samples"], res_sg, pol_sg) 
+            print("Noisy violation rate is found to be {:.3f}".format(pert_violation))
         print("\n\n")
 
 def test_support_num(args):

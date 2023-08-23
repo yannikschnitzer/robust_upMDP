@@ -24,6 +24,33 @@ def MC_sampler(model, k, thresh, pol=None):
     
     return violation_rate
 
+def MC_perturbed(model, k, thresh, pol=None, var=0.1):
+    inn_count = 0
+    for j in tqdm(range(k)):
+        params = model.param_sampler()
+        exact = model.fix_params(params)
+        if pol is None:
+            IO = writer.stormpy_io(exact)
+            IO.write()
+            res, all_res, pol = IO.solve()
+        perturbed = params + np.random.normal(scale=var, size=np.size(exact))
+        pert_model = model.fix_params(perturbed)
+        pert_model = pert_model.fix_pol(pol)
+
+        IO = writer.stormpy_io(pert_model)
+        IO.write()
+        res, all_res, sol_pol = IO.solve()
+        if model.opt == "max":
+            if res[0] < thresh:
+                inn_count+= 1
+        else:
+            if res[0] > thresh:
+                inn_count += 1
+    
+    violation_rate = inn_count/k
+    
+    return violation_rate
+
 def calc_eps(beta, N, d):
     eps = betaF.ppf(1-beta, d, N-d+1)
     return eps

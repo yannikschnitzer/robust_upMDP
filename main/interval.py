@@ -36,3 +36,10 @@ def run(args, samples):
                 .format(a_post_eps_L, a_post_eps_U, args["beta"]))
     
     print("Optimal satisfaction probability is found to be {:.3f}".format(prob[0]))
+        
+    if args["MC"]:
+        emp_violation = MC_sampler(model, args["MC_samples"], prob[0], pol) 
+        print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+    if args["MC_pert"]:
+        pert_violation = MC_perturbed(model, args["MC_samples"], prob[0], pol) 
+        print("Noisy violation rate is found to be {:.3f}".format(pert_violation))

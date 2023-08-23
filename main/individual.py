@@ -100,6 +100,10 @@ def run_all(args, samples):
     if args["MC"]:
         emp_violation = MC_sampler(model, args["MC_samples"], min_prob) 
         print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+    
+    if args["MC_pert"]:
+        emp_violation = MC_perturbed(model, args["MC_samples"], min_prob) 
+        print("Noisy violation rate is found to be {:.3f}".format(emp_violation))
     print("\n\n")
 
 if __name__=="__main__":

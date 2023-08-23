@@ -37,6 +37,12 @@ opt_settings = {"model":{"parser":parse_model,
                     "flags":["--MC"],
                     "default":False
                     },
+                "MC_pert":{
+                    "parser":parse_bool,
+                    "args":[], 
+                    "flags":["--MC_p"],
+                    "default":False
+                    },
                 "MC_samples":{
                     "parser":parse_num,
                     "args":[int, 1], 
