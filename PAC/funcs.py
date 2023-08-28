@@ -29,15 +29,21 @@ def MC_perturbed(model, k, thresh, pol=None, var=0.1):
     for j in tqdm(range(k)):
         params = model.param_sampler()
         exact = model.fix_params(params)
+        if var==np.inf or type(params)==dict:
+            # We don't have access to any measurement so we just draw from the known distribution and see what happens??
+            perturbed = model.param_sampler()
+        else:
+            perturbed = params + np.random.normal(scale=var, size=np.size(exact))
+        pert_model = model.fix_params(perturbed)
+        
         if pol is None:
-            IO = writer.stormpy_io(exact)
+            IO = writer.stormpy_io(pert_model)
             IO.write()
             res, all_res, pol = IO.solve()
-        perturbed = params + np.random.normal(scale=var, size=np.size(exact))
-        pert_model = model.fix_params(perturbed)
-        pert_model = pert_model.fix_pol(pol)
-
-        IO = writer.stormpy_io(pert_model)
+        
+        actual_MC = pert_model.fix_pol(pol)
+        
+        IO = writer.stormpy_io(actual_MC)
         IO.write()
         res, all_res, sol_pol = IO.solve()
         if model.opt == "max":

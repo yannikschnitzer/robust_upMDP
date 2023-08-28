@@ -68,8 +68,9 @@ def test_pol(model, samples, pol=None, paramed_models = None):
 
 def find_grad(model, pol, worst_sample):
     grad = np.zeros_like(pol)
-    min_elem = 1 
-    max_elem = 0
+    norm = 0
+    #min_elem = 1 
+    #max_elem = 0
     test_MDP = model.fix_params(worst_sample)
     nom_MC = test_MDP.fix_pol(pol)
     nom_ids = copy.copy(nom_MC.trans_ids)
@@ -94,15 +95,19 @@ def find_grad(model, pol, worst_sample):
                 grad[s,a] = res[0]
                 toc = time.perf_counter()
                 logging.debug("Time to find gradient: " + str(toc-tic))
-                min_elem = min(res[0], min_elem)
-                max_elem = max(res[0], max_elem)
+                norm += res[0]**2
+                #min_elem = min(res[0], min_elem)
+                #max_elem = max(res[0], max_elem)
                 #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
                 #tac = time.perf_counter()
                 #print("new version: " + str(tac-toc))
+    norm = norm**(1/2)
     nonzero_inds = np.nonzero(grad)
     scaled_grad = np.copy(grad)
-    scaled_grad[nonzero_inds] -= min_elem
-    scaled_grad /= max_elem-min_elem
+    scaled_grad /= norm
+    #scaled_grad /= np.linalg.norm(scaled_grad.flatten())
+    #scaled_grad[nonzero_inds] -= min_elem # DON'T DO THIS! (consider pi_1 = {0,1}, _2={0.7,0.7}, _3={1,0})
+    #scaled_grad /= max_elem-min_elem
     return scaled_grad
 
 def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
@@ -163,7 +168,7 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
         time_start = time.perf_counter()
         
         old_pol = np.copy(pol)
-        step = 1/(i+1)
+        step = 1/((i+1)**(1/2))
         #step = 10
         grad = find_grad(model, pol, samples[worst])
         #grad_norm = np.linalg.norm(grad, ord=np.inf)

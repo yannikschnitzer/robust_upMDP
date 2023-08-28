@@ -95,7 +95,7 @@ opt_settings = {"model":{"parser":parse_model,
                         "parser":parse_num,
                         "args":[int, 1],
                         "flags":["--sg_itt"],
-                        "default":500
+                        "default":5000
                         },
                 "FSP_itts":{
                         "parser":parse_num,
