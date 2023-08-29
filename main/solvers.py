@@ -69,6 +69,7 @@ def test_pol(model, samples, pol=None, paramed_models = None):
 def find_grad(model, pol, worst_sample):
     grad = np.zeros_like(pol)
     norm = 0
+    time_sum = 0
     #min_elem = 1 
     #max_elem = 0
     test_MDP = model.fix_params(worst_sample)
@@ -94,21 +95,13 @@ def find_grad(model, pol, worst_sample):
                 res, _, _ = IO.solve()
                 grad[s,a] = res[0]
                 toc = time.perf_counter()
-                logging.debug("Time to find gradient: " + str(toc-tic))
-                norm += res[0]**2
-                #min_elem = min(res[0], min_elem)
-                #max_elem = max(res[0], max_elem)
-                #test = test_pol2(model, grad_finder, fixed_MDPs[worst], arr)
-                #tac = time.perf_counter()
-                #print("new version: " + str(tac-toc))
-    norm = norm**(1/2)
-    nonzero_inds = np.nonzero(grad)
-    scaled_grad = np.copy(grad)
-    scaled_grad /= norm
-    #scaled_grad /= np.linalg.norm(scaled_grad.flatten())
-    #scaled_grad[nonzero_inds] -= min_elem # DON'T DO THIS! (consider pi_1 = {0,1}, _2={0.7,0.7}, _3={1,0})
-    #scaled_grad /= max_elem-min_elem
-    return scaled_grad
+                #logging.debug("Time to find gradient: " + str(toc-tic))
+    pre_norming = time.perf_counter()
+    grad /= np.linalg.norm(grad, ord="fro")
+    time_norming = time.perf_counter()-pre_norming
+    logging.debug("time for fro: "+str(time_norming))
+    
+    return grad
 
 def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
     start = time.perf_counter()
@@ -133,11 +126,7 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
     for s in model.States:
         for a in model.Enabled_actions[s]:
             pol[s,a] = 1/len(model.Enabled_actions[s])
-
-    projected = cp.Variable(num_acts)
-    point = cp.Parameter(num_acts)
-
-    obj = cp.Minimize(cp.norm(projected-point))
+    
     wc_hist = []
     best_hist = []
     tic = time.perf_counter()
@@ -174,6 +163,8 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
         #grad_norm = np.linalg.norm(grad, ord=np.inf)
          
         time_grads = time.perf_counter()-time_start
+        if time_grads > 2:
+            import pdb; pdb.set_trace()
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":
             pol += step*grad
@@ -181,35 +172,35 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
             pol -= step*grad 
 
         for s in model.States:
+            fin = False
             if len(model.Enabled_actions[s]) <= 1:
                 pass
-            elif len(model.Enabled_actions[s]) == 2:
-                act_0 = model.Enabled_actions[s][0]
-                act_1 = model.Enabled_actions[s][1]
-                diff = pol[s,act_0]-pol[s,act_1]
-                if diff > 1:
-                    pol[s,act_0] = 1
-                    pol[s,act_1] = 0
-                elif diff < -1:
-                    pol[s, act_0] = 0
-                    pol[s, act_1] = 1
-                else:
-                    pol[s,act_0] = (1+diff)/2
-                    pol[s,act_1] = (1-diff)/2
             else:
-                cons = [cp.norm(projected,1) <= 1, projected >= 0]
-                for a in range(num_acts):
-                    if a not in model.Enabled_actions[s]:
-                        cons += [projected[a] == 0]
-                point.value = pol[s]
-                prob = cp.Problem(obj, cons)
-                res = prob.solve()
-                pol[s] = projected.value
+                acts = model.Enabled_actions[s]
+                normal = np.ones(len(acts))/len(acts)**(1/2)
+                orig = np.ones(len(acts))/len(acts)
+                pol_s_a = pol[s][acts]
+                v = pol_s_a - orig
+                dist = np.dot(v,normal)
+                proj = pol_s_a - dist*normal
+                while True:
+                    normal = np.ones(len(acts))/len(acts)**(1/2)
+                    orig = np.ones(len(acts))/len(acts)
+                    pol_s_a = pol[s][acts]
+                    v = pol_s_a - orig
+                    dist = np.dot(v,normal)
+                    proj = pol_s_a - dist*normal
+                    if np.all(proj > 0):
+                        break
+                    else:
+                        pos = np.where(proj>0)[0]
+                        acts = [acts[p] for p in pos]
+                pol[s] = 0
+                pol[s][acts] = proj
         time_proj = time.perf_counter()-time_start-time_grads
         logging.debug("Time for projection step: {:.3f}".format(time_proj))
         wc, true_probs, _ = test_pol(model, samples, pol, paramed_models = sample_trans_probs)
         worst = np.argwhere(true_probs[:,model.Init_state]==wc)
-        #import pdb; pdb.set_trace()
         worst = np.random.choice(worst.flatten())
         wc_hist.append(wc)
         if model.opt == "max":
@@ -223,7 +214,7 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
         best_hist.append(best)
         logging.info("Iteration: {}".format(i+1))
         logging.info("Current value: {:.6f}, with sample {}".format(wc, worst))
-        logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
+        #logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
         if len(wc_hist) >= 2:
             change=abs(wc_hist[-2]-wc_hist[-1])
             logging.info("Value change: {:.6f}".format(change))
