@@ -114,6 +114,18 @@ opt_settings = {"model":{"parser":parse_model,
                         "args":[],
                         "flags":["--save_figs"],
                         "default":False,
+                        },
+                "init_step":{
+                        "parser":parse_num,
+                        "args":[float, 0],
+                        "flags":["--init_step"],
+                        "default":1
+                        },
+                "step_exp":{
+                        "parser":parse_num,
+                        "args":[float, 0,1],
+                        "flags":["--step_exp"],
+                        "default":0.5
                         }
                 }
 

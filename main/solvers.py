@@ -103,7 +103,7 @@ def find_grad(model, pol, worst_sample):
     
     return grad
 
-def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
+def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3, init_step=1, step_exp=1/2):
     start = time.perf_counter()
     if not quiet:
         print("--------------------\nStarting subgradient descent")
@@ -157,14 +157,16 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3):
         time_start = time.perf_counter()
         
         old_pol = np.copy(pol)
-        step = 1/((i+1)**(1/2))
-        #step = 10
+        step = init_step/((i+1)**step_exp)
+        print(step)
+        #step = 1/((i+1)**(1/2))
+        #step = 0.1
         grad = find_grad(model, pol, samples[worst])
         #grad_norm = np.linalg.norm(grad, ord=np.inf)
          
         time_grads = time.perf_counter()-time_start
-        if time_grads > 2:
-            import pdb; pdb.set_trace()
+        #if time_grads > 2:
+        #    import pdb; pdb.set_trace()
         logging.debug("Total time for finding gradients: {:.3f}".format(time_grads))
         if model.opt == "max":
             pol += step*grad
@@ -471,7 +473,7 @@ def run_all(args, samples):
 
         N = args["num_samples"]
   
-        res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"])
+        res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
         sg_active_num = active_sg.size 
         res_plot = [res_sg - i for i in info_sg["hist"]]
         res_plot.pop(-1)
