@@ -7,4 +7,5 @@ plots/
 console_out/
 __pycache__/
 *.pkl
+*.old
 store/
