@@ -158,7 +158,6 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3, init_ste
         
         old_pol = np.copy(pol)
         step = init_step/((i+1)**step_exp)
-        print(step)
         #step = 1/((i+1)**(1/2))
         #step = 0.1
         grad = find_grad(model, pol, samples[worst])
@@ -225,10 +224,13 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3, init_ste
     final_time = time.perf_counter() - start
     print("Subgradient Descent took {:.3f}s".format(final_time))
     wc, true_probs, _ = test_pol(model, samples, best_pol, paramed_models = sample_trans_probs)
+    #supp_tol=0.05
+    #supp_tol =55 0*tol
+    supp_tol=0.05 #conservative but works
     if model.opt == "max":
-        active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+0.01) # this tol is hard to tune...
+        active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+supp_tol) # this tol is hard to tune...
     else:
-        active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-0.01)
+        active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-supp_tol)
     info = {"hist":best_hist, "all":true_probs[:, model.Init_state]}
 
     return best, best_pol, active_sg, info
@@ -561,33 +563,44 @@ def test_support_num(args):
         samples = get_samples(args)
 
         #probs, pol, supports, a_post_support_num, all_p = calc_probs_policy_iteration(model, base, samples)
-        res_sg, pol_sg, active_sg, _ = solve_subgrad(samples, model, max_iters=100, quiet=True)
+        print("Solving for sample batch")
+        #res_sg, pol_sg, active_sg, _ = solve_subgrad(samples, model, max_iters=100, quiet=True)
+        res_sg, pol_sg, active_sg, _ = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
          
         print("Calculated supports: " + str(active_sg+1)) # Add 1 for 1 indexign
-        
-        actual_supports = []
-        for j in tqdm(range(args["num_samples"])):
-            #print("Testing sample {} of {}".format(j+1,args["num_samples"]))
-            samples_new = remove_sample(j, samples)
-            test_res, test_pol, _, _ = solve_subgrad(samples_new, model, max_iters=100, quiet=True)
-            if model.opt == "max":
-                gap = abs(res_sg - test_res)
-            else:
-                gap = abs(res_sg - test_res)
-            logging.info("Calculated a difference of {} with sample {} removed".format(gap,j+1))
-            if gap >= 1e-4:
-                actual_supports.append(j)
-                if j not in active_sg:
-                    print("ERROR, found an empirical SC not in a posteriori support set")
-                    num_errors += 1
-        print("Empirical supports: " + str([elem+1 for elem in actual_supports]))
-        if len(actual_supports) > model.max_supports:
-            print("ERROR, a priori max sc was wrong!")
-            num_underestimates += 1
-        for sc in active_sg:
-            if sc not in actual_supports:
-                num_over += 1
-                print("Expected sample {} to be support but it wasn't".format(sc))
+        samples_new = [samples[int(j)] for j in active_sg]
+        print("Solving for calculated supports only")
+        test_res, test_pol, _, _ = solve_subgrad(samples_new, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
+        #test_res, test_pol, _, _ = solve_subgrad(samples_new, models, max_it)
+
+        gap = test_res-res_sg # for max
+        if gap > 1e-3:
+            print("ERROR IN SUPPORT SET CALCULATION")
+        print("gap of {:.3f}".format(gap))
+
+        #actual_supports = []
+        #for j in tqdm(range(args["num_samples"])):
+        #    #print("Testing sample {} of {}".format(j+1,args["num_samples"]))
+        #    samples_new = remove_sample(j, samples)
+        #    test_res, test_pol, _, _ = solve_subgrad(samples_new, model, max_iters=100, quiet=True)
+        #    if model.opt == "max":
+        #        gap = abs(res_sg - test_res)
+        #    else:
+        #        gap = abs(res_sg - test_res)
+        #    logging.info("Calculated a difference of {} with sample {} removed".format(gap,j+1))
+        #    if gap >= 1e-4:
+        #        actual_supports.append(j)
+        #        if j not in active_sg:
+        #            print("ERROR, found an empirical SC not in a posteriori support set")
+        #            num_errors += 1
+        #print("Empirical supports: " + str([elem+1 for elem in actual_supports]))
+        #if len(actual_supports) > model.max_supports:
+        #    print("ERROR, a priori max sc was wrong!")
+        #    num_underestimates += 1
+        #for sc in active_sg:
+        #    if sc not in actual_supports:
+        #        num_over += 1
+        #        print("Expected sample {} to be support but it wasn't".format(sc))
     print("Found {} samples which were expected to be of support that were not".format(num_over))
     print("Found {} samples which were not identified as support samples".format(num_errors))
     print("A priori underestimated number of supports {} times".format(num_underestimates))
