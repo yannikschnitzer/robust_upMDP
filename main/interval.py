@@ -2,6 +2,7 @@ import Markov.writer as writer
 import logging
 import time
 from PAC.funcs import *
+from opts import prism_folder  
 
 def test_pol(model, samples, pol=None, paramed_models = None):
     num_states = len(model.States)
@@ -60,7 +61,7 @@ def solve_imdp(model, samples):
     supports = len(iMDP.supports)
     IO = writer.PRISM_io(iMDP)
     IO.write()
-    res, all_res, pol = IO.solve()
+    res, all_res, pol = IO.solve(prism_folder=prism_folder)
     return res, pol, supports
 
 def run(args, samples):
