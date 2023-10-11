@@ -53,16 +53,16 @@ class stormpy_io:
                         for i, s_prime in enumerate(self.model.trans_ids[s][a_id]):
                             self_loop = False
                             builder.add_next_value(choices, s_prime, self.model.Transition_probs[s][a_id][i])
-                    choices += 1
+                        choices += 1
                 if self_loop:
-                    builder.add_next_value(choices, s, 1)
+                    builder.add_next_value(choices, s, 1.0)
                     choices += 1
             else:
                 for i, s_prime in enumerate(self.model.trans_ids[s]):
                     self_loop = False
                     builder.add_next_value(s, s_prime, self.model.Transition_probs[s][i])
                 if self_loop:
-                    builder.add_next_value(s, s, 1)
+                    builder.add_next_value(s, s, 1.0)
         return builder.build() 
         
     def write(self):
@@ -181,7 +181,7 @@ class PRISM_io:
                 optimal_policy = np.zeros((len(self.model.States)))
                 for s in policy:
                     act = int(s[1].split("_")[-1])
-                    optimal_policy[int(s[0])] = act
+                    optimal_policy[int(s[0].split("(")[1].split(")")[0])] = act
                 vector_file = self.vector_filename
                 optimal_reward = np.genfromtxt(vector_file).flatten()
                 if not self.opt_thresh:

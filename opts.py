@@ -1,7 +1,7 @@
 from UI.parsers import *
 import Models.test as test
 
-prism_folder = "~/install/prism-4.8-linux64-x86/" 
+prism_folder = "~/install/prism/prism/" 
 
 opt_settings = {"model":{"parser":parse_model, 
                          "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", 

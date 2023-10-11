@@ -10,8 +10,8 @@ def get_model():
     Test_Model.Actions = np.array(range(3))
     Test_Model.Init_state = 0
     
-    zero = t_f.fixed(0)
-    one = t_f.fixed(1)
+    zero = t_f.fixed(0.0)
+    one = t_f.fixed(1.0)
    
     test_val = 0.52
 
@@ -65,8 +65,8 @@ def get_model_2():
     Test_Model.Actions = np.array(range(2))
     Test_Model.Init_state = 0
     
-    zero = t_f.fixed(0)
-    one = t_f.fixed(1)
+    zero = t_f.fixed(0.0)
+    one = t_f.fixed(1.0)
     
     funcs = [t_f.linear_multi(i) for i in range(2)]
 
@@ -120,8 +120,8 @@ def get_model_3():
     Test_Model.Actions = np.array(range(2))
     Test_Model.Init_state = 0
     
-    zero = t_f.fixed(0)
-    one = t_f.fixed(1)
+    zero = t_f.fixed(0.0)
+    one = t_f.fixed(1.0)
     
     funcs = [t_f.linear_multi(i) for i in range(2)]
 
