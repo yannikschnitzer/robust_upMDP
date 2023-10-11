@@ -82,7 +82,8 @@ def run_all(args, samples):
     print("Running code for individual optimal policies \n --------------------")
     probs = calc_probs(model, samples)
     min_prob, discarded = discard(args["lambda"], probs, model.opt)
-    print("Time for finding probabilities and discarding: {:.3f}s".format(time.perf_counter()-start))
+    runtime = time.perf_counter()-start
+    print("Time for finding probabilities and discarding: {:.3f}s".format(runtime))
 
     tau, etas = optimise(args["rho"], probs, model.opt)
     [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
@@ -105,6 +106,7 @@ def run_all(args, samples):
         emp_violation = MC_perturbed(model, args["MC_samples"], min_prob) 
         print("Noisy violation rate is found to be {:.3f}".format(emp_violation))
     print("\n\n")
+    return runtime
 
 if __name__=="__main__":
     main()

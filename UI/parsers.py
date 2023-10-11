@@ -1,6 +1,7 @@
 import logging
 import sys
 import Models.test as test
+import Models.expander as expander
 import Models.example as ex
 import Models.converter as convert
 import Markov.storm_interface as storm_ui
@@ -68,6 +69,9 @@ def parse_model(flag, opts):
         model = ex.get_model()
     elif model_name == "robot":
         model = ex.get_robot()
+    elif model_name == "expander":
+        inst = parse_num("--inst", int, min_val = 1)
+        model = expander.get_model(inst)
     else:
         wind = None
         from opts import inst_opts

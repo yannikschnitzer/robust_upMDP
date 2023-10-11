@@ -474,8 +474,10 @@ def run_all(args, samples):
         num_states = len(model.States)
 
         N = args["num_samples"]
-  
+        start_time = time.perf_counter()
         res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
+        sg_time = time.perf_counter()-start_time
+
         sg_active_num = active_sg.size 
         res_plot = [res_sg - i for i in info_sg["hist"]]
         res_plot.pop(-1)
@@ -516,8 +518,12 @@ def run_all(args, samples):
         pols = {"subgradient":pol_sg}
 
         if len(model.States)**len(model.Actions) < 200:
+            start_time = time.perf_counter()
             res_MNE, pol_MNE, info_MNE = MNE_solver(samples, model)
+            MNE_time = time.perf_counter()-start_time
+            start_time = time.perf_counter()
             res_FSP, pol_FSP, a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
+            FSP_time = time.perf_counter()-start_time
             if active_sg.size != a_post_support_num:
                 print("Found {} supports using subgradient method, but {} using fictitious self play".format(active_sg.size, a_post_support_num))
             print("----------------\nResult comparison:\nmatrix solver: {:.13f}\nFSP: {:.13f}\nSubgradient: {:.13f}".format(res_MNE, res_FSP, res_sg))
@@ -532,6 +538,9 @@ def run_all(args, samples):
             res["FSP"] = res_FSP
             pols["MNE"] = pol_MNE
             pols["FSP"] = pol_FSP
+        else:
+            MNE_time = -1
+            FSP_time = -1
 
         if args["result_save_file"] is not None:
             save_data(args["result_save_file"], {"res": res, "pols":pols})
@@ -549,6 +558,7 @@ def run_all(args, samples):
             pert_violation = MC_perturbed(model, args["MC_samples"], res_sg, pol_sg) 
             print("Noisy violation rate is found to be {:.3f}".format(pert_violation))
         print("\n\n")
+        return MNE_time, FSP_time, sg_time 
 
 def test_support_num(args):
     print("Running code to test number support set calculation\n--------------")

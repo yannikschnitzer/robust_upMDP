@@ -5,7 +5,7 @@ prism_folder = "~/install/prism/prism/"
 
 opt_settings = {"model":{"parser":parse_model, 
                          "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", 
-                                  "consensus", "hol", "robot"]], 
+                                  "consensus", "hol", "robot", "expander"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },

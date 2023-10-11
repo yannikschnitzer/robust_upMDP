@@ -82,7 +82,8 @@ def run(args, samples):
     prob, pol, supports = solve_imdp(model, samples)
     [a_post_eps_L, a_post_eps_U] = \
         calc_eps_risk_complexity(args["beta"], N, supports)
-    print("Time for iMDP solving: {:.3f}s".format(time.perf_counter()-start))
+    runtime = time.perf_counter()-start
+    print("Time for iMDP solving: {:.3f}s".format(runtime))
 
     wc, true_p, _ = test_pol(model, samples, pol)
 
@@ -100,3 +101,5 @@ def run(args, samples):
     if args["MC_pert"]:
         pert_violation = MC_perturbed(model, args["MC_samples"], wc, pol) 
         print("Noisy violation rate is found to be {:.3f}".format(pert_violation))
+
+    return runtime
