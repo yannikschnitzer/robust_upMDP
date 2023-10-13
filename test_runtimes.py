@@ -5,13 +5,19 @@ from main.solvers import run_all as robust_run
 from main.sampler import get_samples
 import datetime
 import sys
+import pickle
 
 def main():
     num_repeats = 10
+    min_samples = 100
+    max_samples = 5000
+    samples_step = 100
+    max_states = 50
+
     sys.argv += ['--model','expander','--inst','1']
     state_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"subgradient":[]}
     sample_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"subgradient":[]}
-    for num_s in range(100):
+    for num_s in range(max_states):
         state_times["Interval"].append([])
         state_times["Individual"].append([])
         state_times["MNE"].append([])
@@ -31,7 +37,7 @@ def main():
             state_times["subgradient"][-1].append(sub_time)
     sys.argv[-1] = 3
     sys.argv += ['-N',100]
-    for num_samples in range(100,10000,100):
+    for num_samples in range(min_samples,max_samples,samples_step):
         sample_times["Interval"].append([])
         sample_times["Individual"].append([])
         sample_times["MNE"].append([])
@@ -49,7 +55,8 @@ def main():
             sample_times["MNE"][-1].append(MNE_time)
             sample_times["FSP"][-1].append(FSP_time)
             sample_times["subgradient"][-1].append(sub_time)
-    import pdb; pdb.set_trace()
+    with open('runtime_res.pkl','wb') as f:
+        pickle.dump([state_times, sample_times], f)
 
 if __name__=="__main__":
     main()

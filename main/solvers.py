@@ -139,7 +139,7 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3, init_ste
     test_wc, test_probs, _ = test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
     test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
     if worst in test_worst:
-        info = {"hist":test_wc, "all":test_probs[:, model.Init_state]}
+        info = {"hist":[test_wc], "all":test_probs[:, model.Init_state]}
         if not quiet:
             print("Worst case holds with deterministic policy, deterministic is optimal")
         return test_wc, best_worst_pol, test_worst, info
