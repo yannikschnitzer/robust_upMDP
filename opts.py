@@ -111,6 +111,12 @@ opt_settings = {"model":{"parser":parse_model,
                         "flags":["--file_out"],
                         "default":False,
                         },
+                "output_figs":{
+                        "parser":parse_bool,
+                        "args":[],
+                        "flags":["--output_figs"],
+                        "default":False,
+                        },
                 "save_figs":{
                         "parser":parse_bool,
                         "args":[],

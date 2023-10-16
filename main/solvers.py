@@ -494,31 +494,33 @@ def run_all(args, samples):
         sg_time = time.perf_counter()-start_time
 
         sg_active_num = active_sg.size 
-        res_plot = [res_sg - i for i in info_sg["hist"]]
-        res_plot.pop(-1)
-        fig, ax = plt.subplots()
-        ax.loglog(res_plot)
-        ax.set_xlabel("Iteration")
-        ax.set_ylabel("Distance from final satisfaction probability")
+        if args["save_figs"] or args["output_figs"]:
+            res_plot = [res_sg - i for i in info_sg["hist"]]
+            res_plot.pop(-1)
+            fig, ax = plt.subplots()
+            ax.loglog(res_plot)
+            ax.set_xlabel("Iteration")
+            ax.set_ylabel("Distance from final satisfaction probability")
        
 
         if args["save_figs"]:
             fname = "plots/" + start + 'dist_fig'
             plt.savefig(fname + ".png", bbox_inches="tight")
             plt.savefig(fname + ".pdf", bbox_inches="tight")
-        else:
+        elif args["output_figs"]:
             plt.show()
         
-        fig2, ax2 = plt.subplots()
-        ax2.loglog(info_sg["hist"])
-        ax2.set_xlabel("Iteration")
-        ax2.set_ylabel("Satisfaction probability")
+        if args["save_figs"] or args["output_figs"]:
+            fig2, ax2 = plt.subplots()
+            ax2.loglog(info_sg["hist"])
+            ax2.set_xlabel("Iteration")
+            ax2.set_ylabel("Satisfaction probability")
         
         if args["save_figs"]:
             fname = "plots/" + start + 'prob_fig'
             plt.savefig(fname + ".png", bbox_inches="tight")
             plt.savefig(fname + ".pdf", bbox_inches="tight")
-        else:
+        elif args["output_figs"]:
             plt.show()
 
         print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
@@ -529,8 +531,9 @@ def run_all(args, samples):
                 .format(a_post_eps_L, a_post_eps_U, args["beta"]))
 
         print("Optimal satisfaction probability is found to be {:.3f}".format(res_sg))
-        res = {"subgradient":res_sg}
         pols = {"subgradient":pol_sg}
+        res = {"subgradient":res_sg}
+
 
         if len(model.States)**len(model.Actions) < 200:
             start_time = time.perf_counter()
