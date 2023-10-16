@@ -351,12 +351,23 @@ def Feas_prog(payoffs, S_pol, S_adv):
         result = prob.solve()
     except cp.error.SolverError:
         return None, None
+    except:
+        print("UNEXPECTED ERROR IN CVXPY")
+        return None, None
     if result is not np.inf:
         return (pol_strat.value, adv_strat.value), val.value[0]
     else:
         return None, None
 
+def check_timeout(start, max_time=3600):
+    if time.perf_counter() - start > max_time:
+        print("Timed out!")
+        return True
+    else:
+        return False
+
 def PNS_algo(payoffs):
+    start = time.perf_counter()
     strat_lengths = payoffs.shape
     x_1_poss = list(range(1, strat_lengths[0]+1))
     x_2_poss = list(range(1, strat_lengths[1]+1))
@@ -369,25 +380,37 @@ def PNS_algo(payoffs):
     sorter = lambda e: np.abs(e[0]-e[1])*(max_sum+1)+e[0]+e[1]
     comb_poss.sort(key=sorter)
     for x_1, x_2 in tqdm(comb_poss):
+        if check_timeout(start):
+            return None, None
         supps_pols = list(itertools.combinations(range(strat_lengths[0]), x_1))
         for S_pol in supps_pols:
+            if check_timeout(start):
+                return None, None
             redux_payoffs = payoffs[S_pol, :]
             Adv_act_prime = []
             for i, elem in enumerate(redux_payoffs.T):
+                if check_timeout(start):
+                    return None, None
                 if not np.any(np.all(elem.T[:,np.newaxis] > redux_payoffs, axis=0)):
                     # elem not dominated
                     Adv_act_prime.append(i)
             redux_redux_payoffs = redux_payoffs[:, Adv_act_prime]
             conditional_dommed_exists = False
             for i, elem in enumerate(redux_redux_payoffs):
+                if check_timeout(start):
+                    return None, None
                 if np.any(np.all(elem[np.newaxis, :] < redux_redux_payoffs, axis=1)):
                     conditional_dommed_exists = True
             if not conditional_dommed_exists:
                 supps_adv = list(itertools.combinations(Adv_act_prime, x_2))
                 for S_adv in supps_adv:
+                    if check_timeout(start):
+                        return None, None
                     r_r_r_payoffs = redux_payoffs[:, S_adv]
                     conditional_dommed_exists_2 = False
                     for i, elem in enumerate(r_r_r_payoffs):
+                        if check_timeout(start):
+                            return None, None
                         if np.any(np.all(elem[np.newaxis, :] < r_r_r_payoffs, axis=1)):
                             conditional_dommed_exists_2 = True
                     if not conditional_dommed_exists_2:
@@ -400,20 +423,6 @@ def MNE_solver(samples, model):
     if model.opt != "max":
         payoffs = -payoffs
     pol, val = PNS_algo(payoffs)
-    #best = 0
-    #print("---------------------\nIterating through MNE combinations")
-    #combs = list(itertools.combinations(range(len(rel_samples)), len(pols)))
-    #for elem in tqdm(combs):
-    #    test_non = elem
-    #    test_non_domed_payoffs = payoffs[:, test_non]
-    #    br_mixer = np.ones((1, len(pols)))@np.linalg.inv(test_non_domed_payoffs)
-    #    br_mixer = np.maximum(0, br_mixer)
-    #    br_mixer /= np.sum(br_mixer)
-    #    res = (br_mixer@payoffs).flatten()
-    #    if min(res) > best:
-    #        best = min(res)
-    #        best_samples = elem
-    #        best_pol = np.copy(br_mixer)
     info = {"pols": pol, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
     return val, pol[0], info
 
@@ -520,7 +529,10 @@ def run_all(args, samples):
         if len(model.States)**len(model.Actions) < 200:
             start_time = time.perf_counter()
             res_MNE, pol_MNE, info_MNE = MNE_solver(samples, model)
-            MNE_time = time.perf_counter()-start_time
+            if pol_MNE is not None:
+                MNE_time = time.perf_counter()-start_time
+            else:
+                MNE_time = -1
             start_time = time.perf_counter()
             res_FSP, pol_FSP, a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
             FSP_time = time.perf_counter()-start_time
