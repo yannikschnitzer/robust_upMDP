@@ -161,6 +161,8 @@ def solve_subgrad(samples, model, max_iters=500, quiet=False, tol=1e-3, init_ste
         best = 1
 
     for i in tqdm(range(max_iters)):
+        if check_timeout(start):
+            return -1, None, None, None
         time_start = time.perf_counter()
         
         old_pol = np.copy(pol)
@@ -430,9 +432,57 @@ def MNE_solver(samples, model):
         info = None
     if val is None:
         val = -1
-    return val, pol, info
+    supps = np.sum(pol >= 1e-5)
+    return val, pol, supps, info
+
+def det_maxmin(samples, model):
+    start = time.perf_counter()
+    payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
+    if model.opt != "max":
+        payoffs = -payoffs
+    min_vals = np.min(payoffs, axis=1)
+    best = np.argmax(min_vals)
+    pol = pols[best]
+    val = min_vals[best]
+    val_loc = np.argwhere(payoffs[best,:] == val)
+    supps = np.argwhere(payoffs[:,val_loc] >= val) #(-1 to remove val==val)
+    supps = supps[:,0].tolist()
+    supps.pop(supps.index(best))
+
+    supps_ub = len(supps)
+    
+    block_samples = []
+    block_set = set()
+    for supp in supps:
+        poss_samples = np.argwhere(payoffs[supp,:] <= val)
+        curr_samples = poss_samples.flatten().tolist()
+        block_samples.append(curr_samples)
+        block_set  = block_set.union(curr_samples)
+    for i in range(len(block_set)):
+        if check_timeout(start):
+            return -1, None, None, None
+        test_sets = list(itertools.combinations(block_set, i+1))
+        for test in test_sets:
+            hitter = True
+            for elem in block_samples:
+                intersect = set(test).intersection(elem)
+                if len(intersect) == 0:
+                    hitter = False
+                    break
+            if hitter:
+                hit_set = test
+                break
+        if hitter:
+            break
+    supps = len(hit_set)
+
+    info = {"pols":pol, "all":(payoffs[best,:]).flatten(), "ids":rel_samples}
+
+    return val, pol, supps, info
+
 
 def FSP_solver(samples, model, max_iters = 100000):
+    start = time.perf_counter()
     update_parallel = True
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
     pol_dist = np.ones((1,len(pols)))/len(pols)
@@ -441,6 +491,8 @@ def FSP_solver(samples, model, max_iters = 100000):
     sum_step = 0
     print("---------------------\nStarting FSP")
     for i in tqdm(range(max_iters)):
+        if check_timeout(start):
+            return -1, None, None, None
         #step = 1/(i+1)
         step = 1
         sum_step += step
@@ -488,80 +540,138 @@ def run_all(args, samples):
             warm_probs = None
         num_states = len(model.States)
 
+        ## subgradient
+
         N = args["num_samples"]
         start_time = time.perf_counter()
         res_sg, pol_sg, active_sg, info_sg = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
-        sg_time = time.perf_counter()-start_time
 
-        sg_active_num = active_sg.size 
-        if args["save_figs"] or args["output_figs"]:
-            res_plot = [res_sg - i for i in info_sg["hist"]]
-            res_plot.pop(-1)
-            fig, ax = plt.subplots()
-            ax.loglog(res_plot)
-            ax.set_xlabel("Iteration")
-            ax.set_ylabel("Distance from final satisfaction probability")
+        if pol_sg is not None: 
+            sg_time = time.perf_counter()-start_time
+            sg_active_num = active_sg.size 
+            if args["save_figs"] or args["output_figs"]:
+                res_plot = [res_sg - i for i in info_sg["hist"]]
+                res_plot.pop(-1)
+                fig, ax = plt.subplots()
+                ax.loglog(res_plot)
+                ax.set_xlabel("Iteration")
+                ax.set_ylabel("Distance from final satisfaction probability")
        
 
-        if args["save_figs"]:
-            fname = "plots/" + start + 'dist_fig'
-            plt.savefig(fname + ".png", bbox_inches="tight")
-            plt.savefig(fname + ".pdf", bbox_inches="tight")
-        elif args["output_figs"]:
-            plt.show()
-        
-        if args["save_figs"] or args["output_figs"]:
-            fig2, ax2 = plt.subplots()
-            ax2.loglog(info_sg["hist"])
-            ax2.set_xlabel("Iteration")
-            ax2.set_ylabel("Satisfaction probability")
-        
-        if args["save_figs"]:
-            fname = "plots/" + start + 'prob_fig'
-            plt.savefig(fname + ".png", bbox_inches="tight")
-            plt.savefig(fname + ".pdf", bbox_inches="tight")
-        elif args["output_figs"]:
-            plt.show()
+            if args["save_figs"]:
+                fname = "plots/" + start + 'dist_fig'
+                plt.savefig(fname + ".png", bbox_inches="tight")
+                plt.savefig(fname + ".pdf", bbox_inches="tight")
+            elif args["output_figs"]:
+                plt.show()
+            
+            if args["save_figs"] or args["output_figs"]:
+                fig2, ax2 = plt.subplots()
+                ax2.loglog(info_sg["hist"])
+                ax2.set_xlabel("Iteration")
+                ax2.set_ylabel("Satisfaction probability")
+            
+            if args["save_figs"]:
+                fname = "plots/" + start + 'prob_fig'
+                plt.savefig(fname + ".png", bbox_inches="tight")
+                plt.savefig(fname + ".pdf", bbox_inches="tight")
+            elif args["output_figs"]:
+                plt.show()
+            
+            if args["MC"]:
+                emp_violation = MC_sampler(model, args["MC_samples"], res_sg, pol_sg) 
+                print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+            if args["MC_pert"]:
+                pert_violation = MC_perturbed(model, args["MC_samples"], res_sg, pol_sg) 
+                print("Noisy violation rate is found to be {:.3f}".format(pert_violation))
 
-        print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
-        [a_post_eps_L, a_post_eps_U] = \
-            calc_eps_risk_complexity(args["beta"], N, active_sg.size)
+            print("Using subgradient methods found " + str(active_sg.size) + " active constraints a posteriori")
+            [a_post_eps_L, a_post_eps_U] = \
+                calc_eps_risk_complexity(args["beta"], N, active_sg.size)
 
-        print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
-                .format(a_post_eps_L, a_post_eps_U, args["beta"]))
+            print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
+                    .format(a_post_eps_L, a_post_eps_U, args["beta"]))
 
-        print("Optimal satisfaction probability is found to be {:.3f}".format(res_sg))
+            print("Optimal satisfaction probability is found to be {:.3f}".format(res_sg))
+        else:
+            sg_time = -1
         pols = {"subgradient":pol_sg}
         res = {"subgradient":res_sg}
 
 
         if len(model.States)**len(model.Actions) < 200:
             start_time = time.perf_counter()
-            res_MNE, pol_MNE, info_MNE = MNE_solver(samples, model)
+            res_MNE, pol_MNE, MNE_support_num, info_MNE = MNE_solver(samples, model)
             if pol_MNE is not None:
                 MNE_time = time.perf_counter()-start_time
+                if args["MC"]:
+                    emp_MNE = MC_sampler(model, args["MC_samples"], res_MNE, pol_MNE) 
+                    print("Empirical violation rate is found to be {:.3f}".format(emp_MNE))
+                if args["MC_pert"]:
+                    pert_MNE = MC_perturbed(model, args["MC_samples"], res_MNE, pol_MNE)
+                    print("Noisy violation rate is found to be {:.3f}".format(pert_MNE))
+                print("Using PNS algo found " + str(MNE_support_num) + " support constraints a posteriori")
+                [MNE_a_post_eps_L, MNE_a_post_eps_U] = \
+                    calc_eps_risk_complexity(args["beta"], N, MNE_support_num)
+
+                print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
+                    .format(MNE_a_post_eps_L, MNE_a_post_eps_U, args["beta"]))
+                print("\n------------------\n")
+
             else:
                 MNE_time = -1
-            start_time = time.perf_counter()
-            res_FSP, pol_FSP, a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
-            FSP_time = time.perf_counter()-start_time
-            if active_sg.size != a_post_support_num:
-                print("Found {} supports using subgradient method, but {} using fictitious self play".format(active_sg.size, a_post_support_num))
-            print("----------------\nResult comparison:\nmatrix solver: {:.13f}\nFSP: {:.13f}\nSubgradient: {:.13f}".format(res_MNE, res_FSP, res_sg))
-            [a_post_eps_L, a_post_eps_U] = \
-                calc_eps_risk_complexity(args["beta"], N, a_post_support_num)
-            print("Using game thoeretic methods found " + str(a_post_support_num) + " support constraints a posteriori")
 
-            print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
-                .format(a_post_eps_L, a_post_eps_U, args["beta"]))
-            print("Optimal satisfaction probability is found to be {:.3f}".format(res_MNE))
+            start_time = time.perf_counter()
+            res_FSP, pol_FSP, FSP_a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
+            if pol_FSP is not None:
+                FSP_time = time.perf_counter()-start_time
+                if args["MC"]:
+                    emp_FSP = MC_sampler(model, args["MC_samples"], res_FSP, pol_FSP) 
+                    print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+                if args["MC_pert"]:
+                    pert_FSP = MC_perturbed(model, args["MC_samples"], res_FSP, pol_FSP)
+                [FSP_a_post_eps_L, FSP_a_post_eps_U] = \
+                    calc_eps_risk_complexity(args["beta"], N, FSP_a_post_support_num)
+                print("Using FSP algo found " + str(FSP_a_post_support_num) + " support constraints a posteriori")
+
+                print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
+                    .format(FSP_a_post_eps_L, FSP_a_post_eps_U, args["beta"]))
+                print("\n------------------\n")
+            else:
+                FSP_time = -1
+
+            start_time = time.perf_counter()
+            res_det, pol_det, supps_det, info_det = det_maxmin(samples, model)
+            if pol_det is not None:
+                det_time = time.perf_counter()-start_time
+                eps_det = calc_eps_nonconvex(args["beta"], N, supps_det)
+                if args["MC"]:
+                    emp_det = MC_sampler(model, args["MC_samples"], res_det, pol_det) 
+                    print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+                if args["MC_pert"]:
+                    pert_det = MC_perturbed(model, args["MC_samples"], res_det, pol_det)
+                print("Using deterministic policy found " + str(supps_det) + " support constraints a posteriori")
+
+                print("Hence, a posteriori, violation probability is bounded by {:.3f}, with confidence {:.3f}"
+                    .format(eps_det, args["beta"]))
+                print("\n------------------\n")
+            else:
+                det_time = -1
+            #if active_sg.size != a_post_support_num:
+            #    print("Found {} supports using subgradient method, but {} using fictitious self play".format(active_sg.size, a_post_support_num))
+            
+
+            print("----------------\nResult comparison:\nPNS algo: {:.13f}\nDet.: {:.13f}\nFSP: {:.13f}\nSubgradient: {:.13f}".format(res_MNE, res_det, res_FSP, res_sg))
             res["MNE"] = res_MNE
             res["FSP"] = res_FSP
+            res["det"] = res_det
             pols["MNE"] = pol_MNE
             pols["FSP"] = pol_FSP
+            pols["det"] = pol_det
         else:
             MNE_time = -1
             FSP_time = -1
+            det_time = -1
 
         if args["result_save_file"] is not None:
             save_data(args["result_save_file"], {"res": res, "pols":pols})
@@ -572,14 +682,8 @@ def run_all(args, samples):
 
         thresh = a_priori_eps
 
-        if args["MC"]:
-            emp_violation = MC_sampler(model, args["MC_samples"], res_sg, pol_sg) 
-            print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
-        if args["MC_pert"]:
-            pert_violation = MC_perturbed(model, args["MC_samples"], res_sg, pol_sg) 
-            print("Noisy violation rate is found to be {:.3f}".format(pert_violation))
         print("\n\n")
-        return MNE_time, FSP_time, sg_time 
+        return MNE_time, FSP_time, sg_time, det_time
 
 def test_support_num(args):
     print("Running code to test number support set calculation\n--------------")
@@ -597,7 +701,6 @@ def test_support_num(args):
         print("Solving for sample batch")
         #res_sg, pol_sg, active_sg, _ = solve_subgrad(samples, model, max_iters=100, quiet=True)
         res_sg, pol_sg, active_sg, _ = solve_subgrad(samples, model, max_iters=args["sg_itts"], tol=args["tol"], init_step=args["init_step"], step_exp=args["step_exp"])
-         
         print("Calculated supports: " + str(active_sg+1)) # Add 1 for 1 indexign
         samples_new = [samples[int(j)] for j in active_sg]
         print("Solving for calculated supports only")

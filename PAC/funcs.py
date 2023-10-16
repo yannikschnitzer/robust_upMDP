@@ -1,4 +1,5 @@
 import numpy as np
+from math import comb
 from scipy.stats import beta as betaF
 from tqdm import tqdm
 import Markov.writer as writer
@@ -137,4 +138,11 @@ def calc_eps_risk_complexity(beta, N, k):
     epsU = 1-t1
    
     return epsL, epsU
+
+def calc_eps_nonconvex(beta, N, s):
+    if s == N:
+        mu = 1
+    else:
+        mu = 1-(beta/(N*comb(N,s)))**(1/(N-s))
+    return mu
 

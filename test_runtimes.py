@@ -15,13 +15,14 @@ def main():
     max_states = 50
 
     sys.argv += ['--model','expander','--inst','1']
-    state_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"subgradient":[]}
-    sample_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"subgradient":[]}
+    state_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"det":[],"subgradient":[]}
+    sample_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"det":[],"subgradient":[]}
     for num_s in range(max_states):
         state_times["Interval"].append([])
         state_times["Individual"].append([])
         state_times["MNE"].append([])
         state_times["FSP"].append([])
+        state_times["det"].append([])
         state_times["subgradient"].append([])
         for repeats in range(num_repeats):
             sys.argv[-1] = str(num_s+2)
@@ -29,11 +30,12 @@ def main():
             samples = get_samples(args)
             int_time = int_run(args, samples)
             ind_time = run_all(args, samples)
-            MNE_time, FSP_time, sub_time = robust_run(args, samples)
+            MNE_time, FSP_time, sub_time, det_time = robust_run(args, samples)
             state_times["Interval"][-1].append(int_time)
             state_times["Individual"][-1].append(ind_time)
             state_times["MNE"][-1].append(MNE_time)
             state_times["FSP"][-1].append(FSP_time)
+            state_times["det"][-1].append(det_time)
             state_times["subgradient"][-1].append(sub_time)
     sys.argv[-1] = 3
     sys.argv += ['-N',100]
@@ -42,6 +44,7 @@ def main():
         sample_times["Individual"].append([])
         sample_times["MNE"].append([])
         sample_times["FSP"].append([])
+        sample_times["det"].append([])
         sample_times["subgradient"].append([])
         for repeats in range(num_repeats):
             sys.argv[-1] = str(num_samples)
@@ -49,11 +52,12 @@ def main():
             samples = get_samples(args)
             int_time = int_run(args, samples)
             ind_time = run_all(args, samples)
-            MNE_time, FSP_time, sub_time = robust_run(args, samples)
+            MNE_time, FSP_time, sub_time, det_time = robust_run(args, samples)
             sample_times["Interval"][-1].append(int_time)
             sample_times["Individual"][-1].append(ind_time)
             sample_times["MNE"][-1].append(MNE_time)
             sample_times["FSP"][-1].append(FSP_time)
+            sample_times["det"][-1].append(det_time)
             sample_times["subgradient"][-1].append(sub_time)
     with open('runtime_res.pkl','wb') as f:
         pickle.dump([state_times, sample_times], f)
