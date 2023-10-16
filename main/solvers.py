@@ -14,6 +14,13 @@ import pycarl
 from main.sampler import *
 import datetime
 
+def check_timeout(start, max_time=3600):
+    if time.perf_counter() - start > max_time:
+        print("Timed out!")
+        return True
+    else:
+        return False
+
 def test_pol(model, samples, pol=None, paramed_models = None):
     num_states = len(model.States)
     num_acts = len(model.Actions)
@@ -359,13 +366,6 @@ def Feas_prog(payoffs, S_pol, S_adv):
     else:
         return None, None
 
-def check_timeout(start, max_time=3600):
-    if time.perf_counter() - start > max_time:
-        print("Timed out!")
-        return True
-    else:
-        return False
-
 def PNS_algo(payoffs):
     start = time.perf_counter()
     strat_lengths = payoffs.shape
@@ -423,8 +423,14 @@ def MNE_solver(samples, model):
     if model.opt != "max":
         payoffs = -payoffs
     pol, val = PNS_algo(payoffs)
-    info = {"pols": pol, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
-    return val, pol[0], info
+    if pol is not None:
+        info = {"pols": pol, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
+        pol = pol[0]
+    else:
+        info = None
+    if val is None:
+        val = -1
+    return val, pol, info
 
 def FSP_solver(samples, model, max_iters = 100000):
     update_parallel = True
