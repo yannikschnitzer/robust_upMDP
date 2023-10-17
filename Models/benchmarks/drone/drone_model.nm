@@ -1,15 +1,15 @@
 
 mdp
 
-const int MAXX = 15;
-const int MAXY = 15;
+const int MAXX = 17;
+const int MAXY = 17;
 const int MAXZ = 15;
 
 
 formula attarget2 = x > MAXX - 3;
 formula attarget = x > MAXX - 2 & y > MAXY - 2 & z > MAXZ - 2;
 formula crash = (xarea0 & yarea0 & zarea5) | (xarea5 & yarea0 & zarea0) | (xarea0 & yarea5 & zarea0) | (xarea4 & yarea4 & zarea0) | (xarea4 & yarea2 & zarea4);
-formula valid = (1 <= x & x <= MAXX-1 & 1 <= y & y <= MAXY-1 & 1 <= z & z <= MAXZ-1) & !crash & ok=1; 
+formula valid = (2 <= x & x <= MAXX-2 & 2 <= y & y <= MAXY-2 & 1 <= z & z <= MAXZ-1) & !crash & ok=1; 
 formula xarea0 = 0 <= x & x < 4;
 formula xarea1 = 4 <= x & x < 6;
 formula xarea2 = 6 <= x & x < 7;
@@ -2858,7 +2858,7 @@ module mod
     [move] x > 0 -> 1: (x'=x-1);
     [move] y < MAXY -> 1: (y'=y+1);
     [move] y > 0 -> 1: (y'=y-1);
-    [move] z < MAXX -> 1: (z'=z+1);
+    [move] z < MAXZ -> 1: (z'=z+1);
     [move] z > 0 -> 1: (z'=z-1);
     [move] attarget -> 1: (phase'=1);
 

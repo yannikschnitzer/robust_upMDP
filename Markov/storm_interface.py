@@ -48,12 +48,14 @@ def load_problem(model_file, property_file, bisimulation_type):
     # Load properties
     properties = stormpy.parse_properties_for_prism_program(formula_str, 
                                                             prism_program)
-    
+    properties = stormpy.parse_properties(formula_str, prism_program)
+
     # Set model options
     options = stormpy.BuilderOptions([p.raw_formula for p in properties])
-    options. set_add_out_of_bounds_state()
-    model = stormpy.build_sparse_parametric_model_with_options(prism_program, 
-                                                               options)
+    #options.set_add_out_of_bounds_state()
+    
+    model = stormpy.build_sparse_parametric_model_with_options(prism_program, options)
+    #model = stormpy.build_sparse_parametric_model(prism_program, properties)
 
     print((model.model_type))
     print("Model supports parameters: {}".format(model.supports_parameters))

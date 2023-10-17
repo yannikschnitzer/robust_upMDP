@@ -61,8 +61,10 @@ class stormpy_io:
                 for i, s_prime in enumerate(self.model.trans_ids[s]):
                     self_loop = False
                     builder.add_next_value(s, s_prime, self.model.Transition_probs[s][i])
+                    choices += 1
                 if self_loop:
                     builder.add_next_value(s, s, 1.0)
+                    choices += 1
         return builder.build() 
         
     def write(self):
@@ -72,8 +74,10 @@ class stormpy_io:
         else:
             labels = self._write_labels()
             trans_mat = self._write_transitions()  
+            import pdb; pdb.set_trace()
             components = stormpy.SparseModelComponents(trans_mat, labels)
             self.mdp = stormpy.storage.SparseMdp(components)
+            
             self.specs = self._write_specification()
         
 

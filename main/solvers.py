@@ -428,11 +428,12 @@ def MNE_solver(samples, model):
     if pol is not None:
         info = {"pols": pol, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
         pol = pol[0]
+        supps = np.sum(pol >= 1e-5)
     else:
+        supps = None
         info = None
     if val is None:
         val = -1
-    supps = np.sum(pol >= 1e-5)
     return val, pol, supps, info
 
 def det_maxmin(samples, model):

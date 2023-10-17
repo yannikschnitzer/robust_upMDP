@@ -100,7 +100,23 @@ def parse_model(flag, opts):
                 edited_files.append(model_f)
                 shutil.copyfile(model_f, model_f+".old")
                 replace_line(model_f, search, replace)
-                import pdb; pdb.set_trace()
+            if model_name == "brp":
+                split_inst = inst.split(",")
+                prefix = "Models/benchmarks2/brpmdp/brp"
+                model_f = prefix+".pm"
+                spec_f = prefix+".prctl"
+                
+                edited_files.append(model_f)
+                shutil.copyfile(model_f, model_f+".old")
+                
+                search = "const int N;"
+                replace = search[:-1] +"=" +split_inst[0] + ";"
+                replace_line(model_f, search, replace)
+                
+                search = "const int MAX;"
+                replace = search[:-1] +"=" +split_inst[1] + ";"
+                replace_line(model_f, search, replace)
+                #import pdb; pdb.set_trace()
         #elif model_name == "consensus_2":
         #    prefix = "Models/benchmarks/consensus/coin2"
         #    model_f = prefix+".pm"
