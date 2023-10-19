@@ -74,7 +74,6 @@ class stormpy_io:
         else:
             labels = self._write_labels()
             trans_mat = self._write_transitions()  
-            import pdb; pdb.set_trace()
             components = stormpy.SparseModelComponents(trans_mat, labels)
             self.mdp = stormpy.storage.SparseMdp(components)
             
