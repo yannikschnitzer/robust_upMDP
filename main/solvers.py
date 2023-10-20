@@ -14,7 +14,7 @@ import pycarl
 from main.sampler import *
 import datetime
 
-def check_timeout(start, max_time=3600):
+def check_timeout(start, max_time=360000):
     if time.perf_counter() - start > max_time:
         print("Timed out!")
         return True
@@ -676,10 +676,10 @@ def run_all(args, samples):
 
         if args["result_save_file"] is not None:
             save_data(args["result_save_file"], {"res": res, "pols":pols})
-
-        if pol_sg.size < 50:
-            print("Calculated robust policy using subgradient methods is:")
-            print(pol_sg)
+        if pol_sg is not None:
+            if pol_sg.size < 50:
+                print("Calculated robust policy using subgradient methods is:")
+                print(pol_sg)
 
         thresh = a_priori_eps
 

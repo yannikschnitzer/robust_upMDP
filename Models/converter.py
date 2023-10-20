@@ -48,7 +48,7 @@ def parse(storm_model, params, filename, props, f, weather= None):
     if 'reached' not in model.Labels:
         model.Labels.append("reached")
     if 'drone' in filename:
-        complicated_ind = model.Labels.index("(((x > (17 - 2)) & (y > (17 - 2))) & (z > (15 - 2)))")
+        complicated_ind = model.Labels.index("(((x > (15 - 2)) & (y > (15 - 2))) & (z > (15 - 2)))")
         model.Labels[complicated_ind] = "reached"
         model.Labels.pop(-1)
         model.opt = "max"

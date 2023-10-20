@@ -1,8 +1,8 @@
 
 mdp
 
-const int MAXX = 17;
-const int MAXY = 17;
+const int MAXX = 15;
+const int MAXY = 15;
 const int MAXZ = 15;
 
 

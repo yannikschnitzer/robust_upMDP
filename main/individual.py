@@ -85,10 +85,10 @@ def run_all(args, samples):
     runtime = time.perf_counter()-start
     print("Time for finding probabilities and discarding: {:.3f}s".format(runtime))
 
-    tau, etas = optimise(args["rho"], probs, model.opt)
-    [epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
+    #tau, etas = optimise(args["rho"], probs, model.opt)
+    #[epsL, epsU] = calc_eps_risk_complexity(args["beta"], args["num_samples"], np.sum(etas>=0))
 
-    print("Using results from risk and complexity, new sample will satisfy formula with bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
+    #print("Using results from risk and complexity, new sample will satisfy formula with bound {:.3f}, with a violation probability in the interval [{:.3f}, {:.3f}] with confidence {:.3f}".format(tau, epsL, epsU, args["beta"]))
     if args["lambda"] is not None:
         thresh = calc_eta_discard(args["beta"], args["num_samples"], discarded)
         print("Discarded {} samples".format(discarded))
