@@ -10,7 +10,11 @@ def MC_sampler(model, k, thresh, pol=None):
     for j in tqdm(range(k)):
         sample = Markov.models.MDP(model.sample_MDP())
         if pol is not None:
-            sample = sample.fix_pol(pol)
+            if type(pol) is not tuple:
+                sample = sample.fix_pol(pol)
+            else:
+                elem = np.random.choice(len(pol[1]), p=np.maximum(pol[0],0))
+                sample = sample.fix_pol(pol[1][elem])
         IO = writer.stormpy_io(sample)
         IO.write()
         res, all_res, sol_pol = IO.solve()
@@ -42,7 +46,11 @@ def MC_perturbed(model, k, thresh, pol=None, var=0.1):
             IO.write()
             res, all_res, pol = IO.solve()
         
-        actual_MC = pert_model.fix_pol(pol)
+        if type(pol) is not tuple:
+            actual_MC = pert_model.fix_pol(pol)
+        else:
+            elem = np.random.choice(len(pol[1]), p=np.maximum(pol[0],0))
+            actual_MC = pert_model.fix_pol(pol[1][elem])
         
         IO = writer.stormpy_io(actual_MC)
         IO.write()

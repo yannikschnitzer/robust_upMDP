@@ -13,8 +13,11 @@ import matplotlib.pyplot as plt
 import pycarl
 from main.sampler import *
 import datetime
+MAX_TIME = 3600
 
-def check_timeout(start, max_time=360000):
+def check_timeout(start, max_time=-1):
+    if max_time == -1:
+        max_time = MAX_TIME
     if time.perf_counter() - start > max_time:
         print("Timed out!")
         return True
@@ -259,12 +262,15 @@ def find_all_pols(model):
     return pols
 
 def build_init_payoff(samples, model):
+    start = time.perf_counter()
     pols = find_all_pols(model)
     all_probs = []
     non_dommed_pols = []
     print("--------------------\nBuilding initial payoff matrix")
     best_wc = 0
     for j, pol in enumerate(tqdm(pols)):
+        if check_timeout(start):
+            return None, None
         # could also find best deterministic policy here
         probs = test_pol(model, samples, pol)[1][:,model.Init_state]
         if model.opt == "max":
@@ -301,6 +307,8 @@ def build_init_payoff(samples, model):
 
 def calc_payoff_mat(samples, model):
     payoffs, pols = build_init_payoff(samples, model)
+    if payoffs is None:
+        return None, None, None
 
     print("--------------------\nRemoving dominated samples")
     
@@ -419,14 +427,17 @@ def PNS_algo(payoffs):
                         pol, val = Feas_prog(payoffs, S_pol, S_adv)
                         if pol is not None:
                             return pol, val
+    return None, None
 
 def MNE_solver(samples, model):
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
+    if payoffs is None:
+        return -1, None, None, None
     if model.opt != "max":
         payoffs = -payoffs
     pol, val = PNS_algo(payoffs)
     if pol is not None:
-        info = {"pols": pol, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
+        info = {"pols": pols, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
         pol = pol[0]
         supps = np.sum(pol >= 1e-5)
     else:
@@ -434,11 +445,15 @@ def MNE_solver(samples, model):
         info = None
     if val is None:
         val = -1
+    if model.opt == "min":
+        val = -val
     return val, pol, supps, info
 
 def det_maxmin(samples, model):
     start = time.perf_counter()
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
+    if payoffs is None:
+        return -1, None, None, None
     if model.opt != "max":
         payoffs = -payoffs
     min_vals = np.min(payoffs, axis=1)
@@ -478,6 +493,8 @@ def det_maxmin(samples, model):
     supps = len(hit_set)
 
     info = {"pols":pol, "all":(payoffs[best,:]).flatten(), "ids":rel_samples}
+    if model.opt == "min":
+        val = -val
 
     return val, pol, supps, info
 
@@ -486,6 +503,8 @@ def FSP_solver(samples, model, max_iters = 100000):
     start = time.perf_counter()
     update_parallel = True
     payoffs, pols, rel_samples = calc_payoff_mat(samples, model)
+    if payoffs is None:
+        return -1, None, None, None
     pol_dist = np.ones((1,len(pols)))/len(pols)
     sample_dist = np.ones((len(rel_samples),1))/len(rel_samples)
 
@@ -519,9 +538,11 @@ def FSP_solver(samples, model, max_iters = 100000):
         res = max((pol_dist@payoffs).flatten())
 
     info = {"pols": pols, "all":(pol_dist@payoffs).flatten(), "ids":rel_samples}
-    return res, pol_dist, np.sum(sample_dist >= 1e-4), info
+    return res, pol_dist.flatten(), np.sum(sample_dist >= 1e-4), info
 
 def run_all(args, samples):
+    global MAX_TIME 
+    MAX_TIME = args["timeout"]
     start = datetime.datetime.now().isoformat().split('.')[0]
     print("Running code for robust optimal policy \n --------------------")
     model = args["model"]
@@ -560,7 +581,7 @@ def run_all(args, samples):
        
 
             if args["save_figs"]:
-                fname = "plots/" + start + 'dist_fig'
+                fname = args["save_figs"] + '_dist_fig'
                 plt.savefig(fname + ".png", bbox_inches="tight")
                 plt.savefig(fname + ".pdf", bbox_inches="tight")
             elif args["output_figs"]:
@@ -573,7 +594,7 @@ def run_all(args, samples):
                 ax2.set_ylabel("Satisfaction probability")
             
             if args["save_figs"]:
-                fname = "plots/" + start + 'prob_fig'
+                fname = args["save_figs"] + '_prob_fig'
                 plt.savefig(fname + ".png", bbox_inches="tight")
                 plt.savefig(fname + ".pdf", bbox_inches="tight")
             elif args["output_figs"]:
@@ -599,11 +620,14 @@ def run_all(args, samples):
         pols = {"subgradient":pol_sg}
         res = {"subgradient":res_sg}
 
-
-        if len(model.States)**len(model.Actions) < 200:
+        MNE_time = -1
+        FSP_time = -1
+        det_time = -1
+        if not args["sg_only"]:
             start_time = time.perf_counter()
             res_MNE, pol_MNE, MNE_support_num, info_MNE = MNE_solver(samples, model)
             if pol_MNE is not None:
+                pol_MNE = (pol_MNE, info_MNE["pols"])
                 MNE_time = time.perf_counter()-start_time
                 if args["MC"]:
                     emp_MNE = MC_sampler(model, args["MC_samples"], res_MNE, pol_MNE) 
@@ -619,18 +643,17 @@ def run_all(args, samples):
                     .format(MNE_a_post_eps_L, MNE_a_post_eps_U, args["beta"]))
                 print("\n------------------\n")
 
-            else:
-                MNE_time = -1
-
             start_time = time.perf_counter()
             res_FSP, pol_FSP, FSP_a_post_support_num, info_FSP = FSP_solver(samples, model, max_iters=args["FSP_itts"])
             if pol_FSP is not None:
+                pol_FSP = (pol_FSP, info_FSP["pols"])
                 FSP_time = time.perf_counter()-start_time
                 if args["MC"]:
                     emp_FSP = MC_sampler(model, args["MC_samples"], res_FSP, pol_FSP) 
-                    print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+                    print("Empirical violation rate is found to be {:.3f}".format(emp_FSP))
                 if args["MC_pert"]:
                     pert_FSP = MC_perturbed(model, args["MC_samples"], res_FSP, pol_FSP)
+                    print("Noisy violation rate is found to be {:.3f}".format(pert_FSP))
                 [FSP_a_post_eps_L, FSP_a_post_eps_U] = \
                     calc_eps_risk_complexity(args["beta"], N, FSP_a_post_support_num)
                 print("Using FSP algo found " + str(FSP_a_post_support_num) + " support constraints a posteriori")
@@ -638,8 +661,6 @@ def run_all(args, samples):
                 print("Hence, a posteriori, violation probability is in the range [{:.3f}, {:.3f}], with confidence {:.3f}"
                     .format(FSP_a_post_eps_L, FSP_a_post_eps_U, args["beta"]))
                 print("\n------------------\n")
-            else:
-                FSP_time = -1
 
             start_time = time.perf_counter()
             res_det, pol_det, supps_det, info_det = det_maxmin(samples, model)
@@ -648,16 +669,15 @@ def run_all(args, samples):
                 eps_det = calc_eps_nonconvex(args["beta"], N, supps_det)
                 if args["MC"]:
                     emp_det = MC_sampler(model, args["MC_samples"], res_det, pol_det) 
-                    print("Empirical violation rate is found to be {:.3f}".format(emp_violation))
+                    print("Empirical violation rate is found to be {:.3f}".format(emp_det))
                 if args["MC_pert"]:
                     pert_det = MC_perturbed(model, args["MC_samples"], res_det, pol_det)
+                    print("Noisy violation rate is found to be {:.3f}".format(pert_det))
                 print("Using deterministic policy found " + str(supps_det) + " support constraints a posteriori")
 
                 print("Hence, a posteriori, violation probability is bounded by {:.3f}, with confidence {:.3f}"
                     .format(eps_det, args["beta"]))
                 print("\n------------------\n")
-            else:
-                det_time = -1
             #if active_sg.size != a_post_support_num:
             #    print("Found {} supports using subgradient method, but {} using fictitious self play".format(active_sg.size, a_post_support_num))
             
@@ -669,10 +689,6 @@ def run_all(args, samples):
             pols["MNE"] = pol_MNE
             pols["FSP"] = pol_FSP
             pols["det"] = pol_det
-        else:
-            MNE_time = -1
-            FSP_time = -1
-            det_time = -1
 
         if args["result_save_file"] is not None:
             save_data(args["result_save_file"], {"res": res, "pols":pols})

@@ -6,7 +6,7 @@ prism_folder = "~/install/prism/prism/"
 
 opt_settings = {"model":{"parser":parse_model, 
                          "args":[["test", "test2", "test3", "test4", "test5", "test6", "test7", "drone", 
-                                  "consensus", "hol", "robot", "expander"]], 
+                                  "consensus", "hol", "robot", "expander", "brp", "sav", "zeroconf"]], 
                          "flags":["--model"],
                          "default":test.get_model_2()
                          },
@@ -107,8 +107,8 @@ opt_settings = {"model":{"parser":parse_model,
                         "default":10000
                         },
                 "file_write":{
-                        "parser":parse_bool,
-                        "args":[],
+                        "parser":parse_file,
+                        "args":[False],
                         "flags":["--file_out"],
                         "default":False,
                         },
@@ -119,8 +119,8 @@ opt_settings = {"model":{"parser":parse_model,
                         "default":False,
                         },
                 "save_figs":{
-                        "parser":parse_bool,
-                        "args":[],
+                        "parser":parse_file,
+                        "args":[False],
                         "flags":["--save_figs"],
                         "default":False,
                         },
@@ -135,12 +135,24 @@ opt_settings = {"model":{"parser":parse_model,
                         "args":[float, 0,1],
                         "flags":["--step_exp"],
                         "default":0.5
-                        }
+                        },
+                "timeout":{
+                        "parser":parse_num,
+                        "args":[int, 1],
+                        "flags":["--to"],
+                        "default":3600
+                        },
+                "sg_only":{
+                        "parser":parse_bool,
+                        "args":[],
+                        "flags":["--sg_only"],
+                        "default":False
+                        },
                 }
 
 inst_opts = {"brp":["256,15","4096,5"],
              "consensus": ["2,2","2,32","4,2","4,4"],
-             "sav": ["6,2,2", "100,10,10", "6,2,2", "10,3,3"],
+             "sav": ["6,2,2", "100,10,10", "10,3,3"],
              "zeroconf": ["2", "5"],
              "drone": ["uniform","x-neg-bias","y-pos-bias"], 
              }

@@ -101,20 +101,52 @@ def parse_model(flag, opts):
                 shutil.copyfile(model_f, model_f+".old")
                 replace_line(model_f, search, replace)
             if model_name == "brp":
+                bisim = "strong"
                 split_inst = inst.split(",")
-                prefix = "Models/benchmarks2/brpmdp/brp"
+                prefix = "models/benchmarks2/brpmdp/brp"
                 model_f = prefix+".pm"
                 spec_f = prefix+".prctl"
                 
                 edited_files.append(model_f)
                 shutil.copyfile(model_f, model_f+".old")
                 
-                search = "const int N;"
+                search = "const int n;"
                 replace = search[:-1] +"=" +split_inst[0] + ";"
                 replace_line(model_f, search, replace)
                 
-                search = "const int MAX;"
+                search = "const int max;"
                 replace = search[:-1] +"=" +split_inst[1] + ";"
+                replace_line(model_f, search, replace)
+            if model_name == "sav":
+                raise NotImplementedError
+                bisim = "strong"
+                split_inst = inst.split(",")
+                prefix = "models/benchmarks2/brpmdp/brp"
+                model_f = prefix+".pm"
+                spec_f = prefix+".prctl"
+                
+                edited_files.append(model_f)
+                shutil.copyfile(model_f, model_f+".old")
+                
+                search = "const int n;"
+                replace = search[:-1] +"=" +split_inst[0] + ";"
+                replace_line(model_f, search, replace)
+                
+                search = "const int max;"
+                replace = search[:-1] +"=" +split_inst[1] + ";"
+                replace_line(model_f, search, replace)
+            if model_name == "zeroconf":
+                bisim = "strong"
+                split_inst = inst.split(",")
+                prefix = "models/benchmarks2/zeroconf/zeroconf"
+                model_f = prefix+".pm"
+                spec_f = prefix+".prctl"
+                
+                edited_files.append(model_f)
+                shutil.copyfile(model_f, model_f+".old")
+                
+                search = "const int n;"
+                replace = search[:-1] +"=" +split_inst[0] + ";"
                 replace_line(model_f, search, replace)
                 #import pdb; pdb.set_trace()
         #elif model_name == "consensus_2":
@@ -154,7 +186,11 @@ def parse_debug(flag):
 
 
 def parse_file(flag, load):
-    filename = "store/"+parse_str(flag, None)
+    try:
+        filename = "store/"+parse_str(flag, None)
+    except:
+        start = datetime.datetime.now().isoformat().split('.')[0]
+        filename = "store/"+start+".txt"
     if load:
         file_exists = exists(filename)
         if not file_exists:

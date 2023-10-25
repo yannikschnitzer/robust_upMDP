@@ -49,6 +49,7 @@ def get_model(num_states, num_acts=2):
     Test_Model.Name = "expander"
         
     Test_Model.Formulae = ["Pmax=? [ F \"reached\"]"]
-
+    #Test_Model.Formulae = ["Pmin=? [ G !\"reached\"]"]
+    #Test_Model.opt = "min"
 
     return Test_Model
