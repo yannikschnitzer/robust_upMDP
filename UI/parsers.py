@@ -103,7 +103,7 @@ def parse_model(flag, opts):
             if model_name == "brp":
                 bisim = "strong"
                 split_inst = inst.split(",")
-                prefix = "models/benchmarks2/brpmdp/brp"
+                prefix = "Models/benchmarks2/brpmdp/brp"
                 model_f = prefix+".pm"
                 spec_f = prefix+".prctl"
                 
@@ -118,34 +118,46 @@ def parse_model(flag, opts):
                 replace = search[:-1] +"=" +split_inst[1] + ";"
                 replace_line(model_f, search, replace)
             if model_name == "sav":
-                raise NotImplementedError
-                bisim = "strong"
+                bisim = "none"
                 split_inst = inst.split(",")
-                prefix = "models/benchmarks2/brpmdp/brp"
+                if split_inst[0] == "2":
+                    prefix = "Models/benchmarks2/sav/reporter2"
+                else:
+                    prefix = "Models/benchmarks2/sav/reporter4"
+
                 model_f = prefix+".pm"
                 spec_f = prefix+".prctl"
                 
                 edited_files.append(model_f)
                 shutil.copyfile(model_f, model_f+".old")
                 
-                search = "const int n;"
-                replace = search[:-1] +"=" +split_inst[0] + ";"
-                replace_line(model_f, search, replace)
-                
-                search = "const int max;"
+                search = "const int Xsize;"
                 replace = search[:-1] +"=" +split_inst[1] + ";"
                 replace_line(model_f, search, replace)
+                
+                search = "const int Ysize;"
+                replace = search[:-1] +"=" +split_inst[1] + ";"
+                replace_line(model_f, search, replace)
+                
+                search = "const int MAXTRIES;"
+                replace = search[:-1] +"=" +split_inst[2] + ";"
+                replace_line(model_f, search, replace)
+                
+                search = "const int B;"
+                replace = search[:-1] +"=" +split_inst[3] + ";"
+                replace_line(model_f, search, replace)
+                
             if model_name == "zeroconf":
-                bisim = "strong"
+                bisim = "none" #can't do weak, strong takes a while? (not sure how long it actually takes)
                 split_inst = inst.split(",")
-                prefix = "models/benchmarks2/zeroconf/zeroconf"
+                prefix = "Models/benchmarks2/zeroconf/zeroconf"
                 model_f = prefix+".pm"
                 spec_f = prefix+".prctl"
                 
                 edited_files.append(model_f)
                 shutil.copyfile(model_f, model_f+".old")
                 
-                search = "const int n;"
+                search = "const int K;"
                 replace = search[:-1] +"=" +split_inst[0] + ";"
                 replace_line(model_f, search, replace)
                 #import pdb; pdb.set_trace()

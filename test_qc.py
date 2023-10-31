@@ -4,9 +4,12 @@ import Markov.writer as writer
 import Markov.models
 from tqdm import tqdm
 import numpy as np
+from scipy.special import softmax
 
 k = 100
 k_inn = 10
+
+softmax_mix = True
 
 args = get_args()
 model = args["model"]
@@ -16,14 +19,18 @@ num_acts = len(model.Actions)
 q_convex = True
 q_concave = True
 for j in tqdm(range(k)):
+    params_1 = np.ones((num_states, num_acts))*-np.infty
+    params_2 = np.ones((num_states, num_acts))*-np.infty
     pol_1 = np.zeros((num_states, num_acts))
     pol_2 = np.zeros((num_states, num_acts))
     for s in model.States:
         for a in model.Enabled_actions[s]:
-            pol_1[s,a] = np.random.randint(1,10000)#1/len(model.Enabled_actions[s])
-            pol_2[s,a] = np.random.randint(1,10000)#1/len(model.Enabled_actions[s])
-        pol_1[s,:] /= np.sum(pol_1[s,:])
-        pol_2[s,:] /= np.sum(pol_2[s,:])
+            params_1[s,a] = np.random.random()#1/len(model.Enabled_actions[s])
+            params_2[s,a] = np.random.random()#1/len(model.Enabled_actions[s])
+        pol_1[s,:] = softmax(params_1[s,:])
+        pol_2[s,:] = softmax(params_2[s,:])
+        #pol_1[s,:] /= np.sum(pol_1[s,:])
+        #pol_2[s,:] /= np.sum(pol_2[s,:])
 
     sample_1 = sample.fix_pol(pol_1)
     sample_2 = sample.fix_pol(pol_2)
@@ -40,7 +47,10 @@ for j in tqdm(range(k)):
     max_res = max(res_1,res_2)
     for i in range(k_inn):
         mixer = np.random.random()
-        mix_pol = mixer*pol_1*(1-mixer)*pol_2
+        mix_pol = mixer*pol_1+(1-mixer)*pol_2
+        if softmax_mix:
+            mix_params = mixer*params_1+(1-mixer)*params_2
+            mix_pol = softmax(mix_params, axis=1)
 
         mix_sample = sample.fix_pol(mix_pol)
         IO = writer.stormpy_io(mix_sample)
@@ -52,6 +62,12 @@ for j in tqdm(range(k)):
         
         if mix_res > max_res:
             q_convex = False
+    if model.opt == "min":
+        if not q_convex:
+            break
+    else:
+        if not q_concave:
+            break
     if (not q_concave) and (not q_convex):
         break
 

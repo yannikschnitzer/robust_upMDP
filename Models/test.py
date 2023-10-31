@@ -109,8 +109,8 @@ def get_model_2():
         
     Test_Model.Formulae = ["Pmax=? [ F \"reached\"]"]
     
-    #Test_Model.Formulae = ["Pmin=? [ G !\"reached\"]"]
-    #Test_Model.opt = "min"
+    Test_Model.Formulae = ["Pmin=? [ G !\"reached\"]"]
+    Test_Model.opt = "min"
 
     Test_Model.Enabled_actions = [[0,1],[0],[0],[0],[0]]
 

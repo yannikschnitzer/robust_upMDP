@@ -57,15 +57,15 @@ def parse(storm_model, params, filename, props, f, weather= None):
         reached_states = set(model.Labelled_states[model.Labels.index("finished")]).intersection(
                              model.Labelled_states[model.Labels.index("all_coins_equal_1")])
         model.Labelled_states.append(list(reached_states))
-        model.opt = "min"
     elif 'brp_256' in filename:
         model.Labelled_states.append(model.Labelled_states[model.Labels.index("(s = 5)")])
     elif 'crowds' in filename:
         model.Labelled_states.append(model.Labelled_states[model.Labels.index("observe0Greater1")])
     elif 'nand' in filename:
-        model.opt="min"
         model.Labelled_states.append(model.Labelled_states[model.Labels.index("target")])
 
+    if "min" in model.Formulae[0]:
+        model.opt = "min"
     model.paramed = [[[not t.value().is_constant() for t in action.transitions]
                        for action in state.actions]
                        for state in storm_model.states]

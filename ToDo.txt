@@ -1,5 +1,0 @@
-- Build Trans_mat in batches for alrger number of samples
-- Discarding for robust
-- Risk and complexity for robust?
-
-Test

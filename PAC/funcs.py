@@ -145,7 +145,7 @@ def calc_eps_risk_complexity(beta, N, k):
             t1 = t
     epsU = 1-t1
    
-    return epsL, epsU
+    return epsU
 
 def calc_eps_nonconvex(beta, N, s):
     if s == N:

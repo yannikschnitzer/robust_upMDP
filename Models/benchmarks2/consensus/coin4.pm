@@ -8,7 +8,7 @@ const double p4; // in [0.2 , 0.8]
 
 
 const int N=4;
-const int K;
+const int K=2;
 const int range = 2*(K+1)*N;
 const int counter_init = (K+1)*N;
 const int left = N;
@@ -18,16 +18,16 @@ const int right = 2*(K+1)*N - N;
 global counter : [0..range] init counter_init;
 
 module process1
-	
+
 	// program counter
 	pc1 : [0..3];
 	// 0 - flip
-	// 1 - write 
+	// 1 - write
 	// 2 - check
 	// 3 - finished
-	
+
 	// local coin
-	coin1 : [0..1];	
+	coin1 : [0..1];
 
 	// flip coin
 	[] (pc1=0)  -> p1 : (coin1'=0) & (pc1'=1) + 1 - p1 : (coin1'=1) & (pc1'=1);
