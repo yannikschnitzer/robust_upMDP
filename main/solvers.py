@@ -1,4 +1,5 @@
 import numpy as np
+import multiprocessing as mp
 import cvxpy as cp
 import Markov.writer as writer
 import Markov.models
@@ -295,7 +296,7 @@ class subgrad(optimiser):
         test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
         if worst in test_worst:
             info = {"hist":[test_wc], "all":test_probs[:, model.Init_state]}
-            if not quiet:
+            if not self.quiet:
                 print("Worst case holds with deterministic policy, deterministic is optimal")
             return test_wc, best_worst_pol, test_worst, info
         pol = 0.1*pol + 0.9*best_worst_pol # a nicer start point
@@ -389,7 +390,19 @@ class subgrad(optimiser):
         info = {"hist":best_hist, "all":true_probs[:, model.Init_state]}
     
         return best, best_pol, active_sg, info
+   
+    def solve_MC(self, MC_list):
+        full_res = []
+        for MC in MC_list:
+            IO = writer.stormpy_io(MC)
+                #IO = writer.stormpy_io(nom_MC)
+                
+            IO.write()
     
+            res, _, _ = IO.solve()
+            full_res.append(res[0])
+        return full_res
+
     def find_grad(self, model, pol, worst_sample):
         grad = np.zeros_like(pol)
         norm = 0
@@ -400,8 +413,15 @@ class subgrad(optimiser):
         nom_MC = test_MDP.fix_pol(pol)
         nom_ids = copy.copy(nom_MC.trans_ids)
         nom_probs = copy.copy(nom_MC.Transition_probs)
+
+        batch_size = mp.cpu_count()
+        
+        nom_MC_list = []
+        s_list = []
+
         for s in model.States:
             if len(model.Enabled_actions[s]) > 1:
+                nom_MC_s = []
                 nom_MC.trans_ids = copy.copy(nom_ids)
                 nom_MC.Transition_probs = copy.copy(nom_probs)
                 for a in model.Enabled_actions[s]:
@@ -411,15 +431,32 @@ class subgrad(optimiser):
                     s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s)
                     nom_MC.trans_ids[s] = s_primes
                     nom_MC.Transition_probs[s] = s_probs
-                    IO = writer.stormpy_io(nom_MC)
-                    #IO = writer.PRISM_io(test_model)
-                    IO.write()
-                    time_write = time.perf_counter()
+                    nom_MC_s.append(copy.deepcopy(nom_MC))
+                s_list.append(s)
+                nom_MC_list.append(nom_MC_s)
+                if len(nom_MC_list) == batch_size:
+                    with mp.Pool(mp.cpu_count()) as p:
+                        res = p.map(self.solve_MC, nom_MC_list)
+                    for s_id, s_found in enumerate(s_list):
+                        for a_id, a in enumerate(model.Enabled_actions[s_found]):
+                            grad[s_found, a] = res[s_id][a_id]
+                    nom_MC_list = []
+                    s_list = []
+                    #IO = writer.stormpy_io(nom_MC)
+                #IO = writer.PRISM_io(test_model)
+                #IO.write()
+                time_write = time.perf_counter()
     
-                    res, _, _ = IO.solve()
-                    grad[s,a] = res[0]
-                    toc = time.perf_counter()
-                    #logging.debug("Time to find gradient: " + str(toc-tic))
+                #res, _, _ = IO.solve()
+                #grad[s,a] = res[0]
+                toc = time.perf_counter()
+                #logging.debug("Time to find gradient: " + str(toc-tic))
+        if len(nom_MC_list) != 0:
+            with mp.Pool(mp.cpu_count()) as p:
+                res = p.map(self.solve_MC, nom_MC_list)
+            for s_id, s_found in enumerate(s_list):
+                for a_id, a in enumerate(model.Enabled_actions[s_found]):
+                    grad[s_found, a] = res[s_id][a_id]
         pre_norming = time.perf_counter()
         grad /= np.linalg.norm(grad, ord="fro")
         time_norming = time.perf_counter()-pre_norming

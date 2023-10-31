@@ -77,14 +77,18 @@ class stormpy_io:
             components = stormpy.SparseModelComponents(trans_mat, labels)
             self.mdp = stormpy.storage.SparseMdp(components)
             
-            self.specs = self._write_specification()
-        
+            self.specs = self._write_specification() 
 
     def _write_specification(self):
         specs = []
         for f in self.model.Formulae:
             specs += stormpy.parse_properties_without_context(f)
         return specs
+
+    def write_and_solve(self, dummy):
+        self.write()
+        res, _, _ = self.solve()
+        return res
 
     def solve(self):
         if hasattr(self.model, "mdp"):
