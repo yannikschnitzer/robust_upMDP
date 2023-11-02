@@ -391,6 +391,38 @@ class subgrad(optimiser):
     
         return best, best_pol, active_sg, info
    
+    def grad_state(self, nom_MC, MDP_trans, MDP_ids, actions_bool, s):
+        grad = np.zeros((1, len(actions_bool)))
+        nom_ids = copy.copy(nom_MC.trans_ids)
+        nom_probs = copy.copy(nom_MC.Transition_probs)
+        if sum(actions_bool) > 1:
+            nom_MC_s = []
+            nom_MC.trans_ids = copy.copy(nom_ids)
+            nom_MC.Transition_probs = copy.copy(nom_probs)
+            a_counter = 0
+            for a_id, a in enumerate(actions_bool):
+                if a:
+                    tic = time.perf_counter()
+                    grad_finder = np.zeros(len(actions_bool))
+                    grad_finder[a_id] = 1
+                    
+                    s_primes = MDP_ids[s][a_counter]
+                    s_probs = MDP_trans[s][a_counter]
+                    
+                    #s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s) # 
+                    
+                    nom_MC.trans_ids[s] = s_primes
+                    nom_MC.Transition_probs[s] = s_probs
+                    nom_MC_s.append(copy.deepcopy(nom_MC))
+                    a_counter += 1
+            res = self.solve_MC(nom_MC_s)
+            a_counter = 0
+            for a_id, a in enumerate(actions_bool): 
+                if a:
+                    grad[0, a_id] = res[a_counter]
+                    a_counter += 1
+        return grad
+
     def solve_MC(self, MC_list):
         full_res = []
         for MC in MC_list:
@@ -411,46 +443,58 @@ class subgrad(optimiser):
         #max_elem = 0
         test_MDP = model.fix_params(worst_sample)
         nom_MC = test_MDP.fix_pol(pol)
-        nom_ids = copy.copy(nom_MC.trans_ids)
-        nom_probs = copy.copy(nom_MC.Transition_probs)
+        #nom_ids = copy.copy(nom_MC.trans_ids)
+        #nom_probs = copy.copy(nom_MC.Transition_probs)
 
         batch_size = mp.cpu_count()
         
         nom_MC_list = []
         s_list = []
 
-        for s in model.States:
-            if len(model.Enabled_actions[s]) > 1:
-                nom_MC_s = []
-                nom_MC.trans_ids = copy.copy(nom_ids)
-                nom_MC.Transition_probs = copy.copy(nom_probs)
-                for a in model.Enabled_actions[s]:
-                    tic = time.perf_counter()
-                    grad_finder = np.zeros(len(model.Actions))
-                    grad_finder[a] = 1
-                    s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s)
-                    nom_MC.trans_ids[s] = s_primes
-                    nom_MC.Transition_probs[s] = s_probs
-                    nom_MC_s.append(copy.deepcopy(nom_MC))
-                s_list.append(s)
-                nom_MC_list.append(nom_MC_s)
-                if len(nom_MC_list) == batch_size:
-                    with mp.Pool(mp.cpu_count()) as p:
-                        res = p.map(self.solve_MC, nom_MC_list)
-                    for s_id, s_found in enumerate(s_list):
-                        for a_id, a in enumerate(model.Enabled_actions[s_found]):
-                            grad[s_found, a] = res[s_id][a_id]
-                    nom_MC_list = []
-                    s_list = []
-                    #IO = writer.stormpy_io(nom_MC)
-                #IO = writer.PRISM_io(test_model)
-                #IO.write()
-                time_write = time.perf_counter()
+        acts_bool = [[1  if a in model.Enabled_actions[s] else 0 for a in model.Actions] for s in model.States]
+        from functools import partial
+        grad_partial = partial(self.grad_state, nom_MC, test_MDP.Transition_probs, test_MDP.trans_ids) 
+        args = zip(acts_bool, model.States)
+        with mp.Pool(mp.cpu_count()) as p:
+            res = p.starmap(grad_partial, args)
+        grad = np.vstack(res)
+        import pdb; pdb.set_trace()
+        #for s in model.States:
+        #    grad_s = grad_partial(acts_bool[s], s)
+        #    #grad_s = self.grad_state(nom_MC, test_MDP.Transition_probs, test_MDP.trans_ids, acts_bool[s], s)
+        #    grad[s,:] = grad_s
+
+            #if len(model.Enabled_actions[s]) > 1:
+            #    nom_MC_s = []
+            #    nom_MC.trans_ids = copy.copy(nom_ids)
+            #    nom_MC.Transition_probs = copy.copy(nom_probs)
+            #    for a in model.Enabled_actions[s]:
+            #        tic = time.perf_counter()
+            #        grad_finder = np.zeros(len(model.Actions))
+            #        grad_finder[a] = 1
+            #        s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s)
+            #        nom_MC.trans_ids[s] = s_primes
+            #        nom_MC.Transition_probs[s] = s_probs
+            #        nom_MC_s.append(copy.deepcopy(nom_MC))
+            #    s_list.append(s)
+            #    nom_MC_list.append(nom_MC_s)
+            #    if len(nom_MC_list) == batch_size:
+            #        with mp.Pool(mp.cpu_count()) as p:
+            #            res = p.map(self.solve_MC, nom_MC_list) # Currently slower...
+            #        for s_id, s_found in enumerate(s_list):
+            #            for a_id, a in enumerate(model.Enabled_actions[s_found]):
+            #                grad[s_found, a] = res[s_id][a_id]
+            #        nom_MC_list = []
+            #        s_list = []
+            #        #IO = writer.stormpy_io(nom_MC)
+            #    #IO = writer.PRISM_io(test_model)
+            #    #IO.write()
+            #    time_write = time.perf_counter()
     
-                #res, _, _ = IO.solve()
-                #grad[s,a] = res[0]
-                toc = time.perf_counter()
-                #logging.debug("Time to find gradient: " + str(toc-tic))
+            #    #res, _, _ = IO.solve()
+            #    #grad[s,a] = res[0]
+            #    toc = time.perf_counter()
+            #    #logging.debug("Time to find gradient: " + str(toc-tic))
         if len(nom_MC_list) != 0:
             with mp.Pool(mp.cpu_count()) as p:
                 res = p.map(self.solve_MC, nom_MC_list)
