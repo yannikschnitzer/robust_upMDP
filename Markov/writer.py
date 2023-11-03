@@ -95,7 +95,8 @@ class stormpy_io:
             res = []
             all_res = []
             for spec in self.specs:
-                result = stormpy.model_checking(self.mdp, spec, extract_scheduler=True)
+                get_pol = self.model.Actions is not None
+                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol, only_initial_states=True)
                 if self.model.Actions is not None:
                     pol = np.zeros((len(self.model.States), len(self.model.Actions)))
                     for s_num, s in enumerate(self.mdp.states):
@@ -110,7 +111,8 @@ class stormpy_io:
             res = []
             all_res = []
             for spec in self.specs:
-                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=True)
+                get_pol = self.model.Actions is not None
+                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol, only_initial_states=True)
                 if self.model.Actions is not None:
                     pol = np.zeros((len(self.model.States), len(self.model.Actions)))
                     for s_num, s in enumerate(self.mdp.states):
