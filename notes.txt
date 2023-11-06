@@ -1,0 +1,2 @@
+Drone without paralellisation: 2740s for gradient
+Drone with parallelisation: 195s!!!!! For gradient

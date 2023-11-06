@@ -18,6 +18,7 @@ import datetime
 
 
 class optimiser:
+    parallel = False
     def __init__(self):
         self.risk_func = None
         self.max_time = 100
@@ -32,12 +33,39 @@ class optimiser:
         else:
             return False
     
+    def call_stormpy(self, model, pol, all_samples):
+        res_list = []
+        all_res_list = []
+        sol_pol_list = []
+        for sample in all_samples:
+            if type(sample) is list:
+                test_MDP = model
+                test_MDP.Transition_probs = sample
+            else:
+                test_MDP = model.fix_params(sample)
+            
+            if pol is not None:
+                test_model = test_MDP.fix_pol(pol)
+            else:
+                test_model = test_MDP
+            
+            IO = writer.stormpy_io(test_model)
+            #IO = writer.PRISM_io(test_model)
+            IO.write()
+    
+            res, all_res, sol_pol = IO.solve()
+
+            res_list.append(res[0])
+            all_res_list.append(all_res)
+            sol_pol_list.append(sol_pol)
+        return res_list, all_res_list, sol_pol_list
+
     def test_pol(self, model, samples, pol=None, paramed_models = None):
         num_states = len(model.States)
         num_acts = len(model.Actions)
         
         if paramed_models is not None:
-            test_MDP = model.fix_params(samples[0])
+            model = model.fix_params(samples[0])
     
         true_probs = []
         pols = []
@@ -45,42 +73,76 @@ class optimiser:
             wc = 1
         else:
             wc = 0
-        for ind, sample in enumerate(samples):
-            time_start = time.perf_counter()
-            if paramed_models is None:
-                test_MDP = model.fix_params(sample)
-            else:
-                test_MDP.Transition_probs = paramed_models[ind]
-            time_fix_params = time.perf_counter()
-            if pol is not None:
-                test_model = test_MDP.fix_pol(pol)
-            else:
-                test_model = test_MDP
-            time_fix_pol = time.perf_counter()
-            IO = writer.stormpy_io(test_model)
-            #IO = writer.PRISM_io(test_model)
-            IO.write()
-            time_write = time.perf_counter()
-    
-            res, all_res, sol_pol = IO.solve()
-            pols.append(sol_pol)
+        # Should be able to parallelise this next bit, it'll speed us up a bit (curently for drone with 100, this is taking 1/4 of the time)
+        # Currently it seems to be fixing the policy that takes the longest
+        # DEBUG:root:solving 0.067s
+        # DEBUG:root:fixing params 0.000s
+        # DEBUG:root:writing 0.095s
+        # DEBUG:root:fixing pol 1.166s
+        start = time.perf_counter()
+        stormpy_partial = partial(self.call_stormpy, model, pol)
+        if paramed_models is not None:
+            args = [[paramed_model] for paramed_model in paramed_models]
+        else:
+            args = [[sample] for sample in samples]
+        if False: # Currently not working
+            with mp.Pool() as p:
+                res = p.map(stormpy_partial, args)
+        else:
+            res = [stormpy_partial(arg) for arg in args]
+        for elem in res:
+            pols += elem[2]
+            true_probs += elem[1] # all_res[0] if using stormpy?
+            # Do this next bit outside the loop...
             if model.opt == "max":
-                if wc>res[0]:
-                    wc = res[0]
+                if wc>min(elem[0]):
+                    wc = min(elem[0])
             else:
-                if wc<res[0]:
-                    wc = res[0]
-            true_probs.append(all_res) # all_res[0] if using stormpy?
+                if wc<max(elem[0]):
+                    wc = max(elem[0])
+        end = time.perf_counter()
+        logging.debug("Time for testing: {:.4f}".format(end-start))
+        #res = self.call_stormpy(model, pol, [samples[0]]) 
+        #res_2 = self.call_stormpy(test_model, pol, [paramed_models[0]])
+        #for ind, sample in enumerate(samples):
+        #    time_start = time.perf_counter()
+        #    if paramed_models is None:
+        #        test_MDP = model.fix_params(sample)
+        #    else:
+        #        test_MDP.Transition_probs = paramed_models[ind]
+        #    time_fix_params = time.perf_counter()
+        #    if pol is not None:
+        #        test_model = test_MDP.fix_pol(pol)
+        #    else:
+        #        test_model = test_MDP
+        #    time_fix_pol = time.perf_counter()
+        #    IO = writer.stormpy_io(test_model)
+        #    #IO = writer.PRISM_io(test_model)
+        #    IO.write()
+        #    time_write = time.perf_counter()
     
-            time_end = time.perf_counter()
-            time_for_fixing_param = time_fix_params -time_start
-            time_for_fixing_pol = time_fix_pol -time_fix_params
-            time_for_writing = time_write - time_fix_pol
-            time_for_solving = ((time_end-time_write))
-            #logging.debug("solving {:.3f}s".format(time_for_solving))
-            #logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
-            #logging.debug("writing {:.3f}s".format(time_for_writing))
-            #logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
+        #    res, all_res, sol_pol = IO.solve()
+        #    
+
+        #    pols.append(sol_pol)
+        #    # Do this next bit outside the loop...
+        #    if model.opt == "max":
+        #        if wc>res[0]:
+        #            wc = res[0]
+        #    else:
+        #        if wc<res[0]:
+        #            wc = res[0]
+        #    true_probs.append(all_res) # all_res[0] if using stormpy?
+    
+        #    time_end = time.perf_counter()
+        #    time_for_fixing_param = time_fix_params -time_start
+        #    time_for_fixing_pol = time_fix_pol -time_fix_params
+        #    time_for_writing = time_write - time_fix_pol
+        #    time_for_solving = ((time_end-time_write))
+        #    logging.debug("solving {:.3f}s".format(time_for_solving))
+        #    logging.debug("fixing params {:.3f}s".format(time_for_fixing_param))
+        #    logging.debug("writing {:.3f}s".format(time_for_writing))
+        #    logging.debug("fixing pol {:.3f}s".format(time_for_fixing_pol))
         true_probs = np.array(true_probs)
         return wc, true_probs, pols
 
@@ -257,7 +319,7 @@ class subgrad(optimiser):
         self.supp_tol=0.05 #conservative but works
         
         self.risk_func = calc_eps_risk_complexity
-        self.parallel = False
+        self.parallel = True
 
     def solve(self, samples, model):
         start = time.perf_counter()
@@ -361,7 +423,7 @@ class subgrad(optimiser):
                     pol[s][acts] = proj
             time_proj = time.perf_counter()-time_start-time_grads
             logging.debug("Time for projection step: {:.3f}".format(time_proj))
-            wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
+            wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs) # This is taking a little while? (like 1 min, could probably speed up)
             worst = np.argwhere(true_probs[:,model.Init_state]==wc)
             worst = np.random.choice(worst.flatten())
             wc_hist.append(wc)
@@ -463,7 +525,7 @@ class subgrad(optimiser):
         acts_bool = [[True  if a in model.Enabled_actions[s] else False for a in model.Actions] for s in model.States]
         grad_partial = partial(self.grad_state, nom_MC, test_MDP.Transition_probs, test_MDP.trans_ids) 
         pre_grad = time.perf_counter()
-        if len(model.States) <= -320:
+        if len(model.States) <= 320:
             args = zip(acts_bool, model.States)
             
             if not self.parallel:

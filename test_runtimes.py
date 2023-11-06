@@ -1,11 +1,11 @@
 from UI.get_args import run as get_args
-from main.interval import run as int_run
-from main.individual import run_all
-from main.solvers import run_all as robust_run
-from main.sampler import get_samples
+from main.solver_base import solver
+from main.MNE_algos import PNS_algo, FSP_algo
+from main.solvers import *
 import datetime
 import sys
 import pickle
+import time
 
 def main():
     num_repeats = 5
@@ -23,14 +23,25 @@ def main():
     state_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"det":[],"subgradient":[]}
     sample_times = {"Interval":[],"Individual":[],"MNE":[],"FSP":[],"det":[],"subgradient":[]}
     
-    MNE = True
-    FSP = False 
-    sub = False
-    det = False
+    args = get_args()
 
-    #FSP = True
-    #sub = True
-    #det = True
+
+    sub = solver(subgrad, args)
+    det_solver = solver(det, args)
+    PNS_solver = solver(MNE, args, [PNS_algo])
+    FSP_solver = solver(MNE, args, [FSP_algo])
+    iMDP_solver = solver(interval, args)
+    thom_discard_solver = solver(thom_discard, args)
+    thom_relax_solver = solver(thom_relax, args)
+    
+    MNE_on = True
+    FSP_on = True
+    sub_on = True
+    det_on = True
+    #FSP = False 
+    #sub = False
+    #det = False
+
 
     for num_s in range(min_states, max_states, states_step):
         state_times["Interval"].append([])
@@ -43,35 +54,57 @@ def main():
             sys.argv[-1] = str(num_s+2)
             args = get_args()
             samples = get_samples(args)
-            int_time = int_run(args, samples)
-            ind_time = run_all(args, samples)
-            MNE_time, FSP_time, sub_time, det_time = robust_run(args, samples, MNE, FSP, sub, det)
+            model = args["model"]
+            
+            if sub_on:
+                start = time.perf_counter()
+                sub.solve(samples, model)
+                sub_time = time.perf_counter()-start
+           
+            if det_on:
+                start = time.perf_counter()
+                det_solver.solve(samples, model)
+                det_time = time.perf_counter()-start
+            if MNE_on:    
+                start = time.perf_counter()
+                PNS_solver.solve(samples, model)
+                mne_time = time.perf_counter()-start
+            if FSP_on:
+                start = time.perf_counter()
+                FSP_solver.solve(samples, model)
+                fsp_time = time.perf_counter()-start
+            
+            start = time.perf_counter()
+            iMDP_solver.solve(samples, model)
+            int_time = time.perf_counter()-start
+            
+            start = time.perf_counter()
+            thom_discard_solver.solve(samples, model)
+            ind_time = time.perf_counter()-start
+            
             state_times["Interval"][-1].append(int_time)
+            
             state_times["Individual"][-1].append(ind_time)
-            if MNE:
+            if MNE_on:
                 state_times["MNE"][-1].append(MNE_time)
-            if FSP:
+            if FSP_on:
                 state_times["FSP"][-1].append(FSP_time)
-            if det:
+            if det_on:
                 state_times["det"][-1].append(det_time)
-            if sub:
+            if sub_on:
                 state_times["subgradient"][-1].append(sub_time)
         if sum(state_times["MNE"][-1] == -num_repeats):
-            MNE = False
+            MNE_on = False
         if sum(state_times["FSP"][-1] == -num_repeats):
-            FSP = False
+            FSP_on = False
         if sum(state_times["det"][-1] == -num_repeats):
-            det = False
+            det_on = False
         if sum(state_times["subgradient"][-1] == -num_repeats):
-            sub = False
-    MNE = True
-    FSP = False 
-    sub = False
-    det = False
-    #MNE = True
-    #FSP = True
-    #sub = True
-    #det = True
+            sub_on = False
+    MNE_on = True
+    FSP_on = True
+    sub_on = True
+    det_on = True
     sys.argv[-1] = 3
     sys.argv += ['-N',100]
     for num_samples in range(min_samples,max_samples,samples_step):
@@ -85,27 +118,51 @@ def main():
             sys.argv[-1] = str(num_samples)
             args = get_args()
             samples = get_samples(args)
-            int_time = int_run(args, samples)
-            ind_time = run_all(args, samples)
-            MNE_time, FSP_time, sub_time, det_time = robust_run(args, samples, MNE, FSP, sub, det)
+            model = args["model"]
+            if sub_on:
+                start = time.perf_counter()
+                sub.solve(samples, model)
+                sub_time = time.perf_counter()-start
+           
+            if det_on:
+                start = time.perf_counter()
+                det_solver.solve(samples, model)
+                det_time = time.perf_counter()-start
+            if MNE_on:    
+                start = time.perf_counter()
+                PNS_solver.solve(samples, model)
+                mne_time = time.perf_counter()-start
+            if FSP_on:
+                start = time.perf_counter()
+                FSP_solver.solve(samples, model)
+                fsp_time = time.perf_counter()-start
+            
+            start = time.perf_counter()
+            iMDP_solver.solve(samples, model)
+            int_time = time.perf_counter()-start
+            
+            start = time.perf_counter()
+            thom_discard_solver.solve(samples, model)
+            ind_time = time.perf_counter()-start
+            
             sample_times["Interval"][-1].append(int_time)
             sample_times["Individual"][-1].append(ind_time)
-            if MNE:
+            if MNE_on:
                 sample_times["MNE"][-1].append(MNE_time)
-            if FSP:
+            if FSP_on:
                 sample_times["FSP"][-1].append(FSP_time)
-            if det:
+            if det_on:
                 sample_times["det"][-1].append(det_time)
-            if sub:
+            if sub_on:
                 sample_times["subgradient"][-1].append(sub_time)
         if sum(state_times["MNE"][-1] == -num_repeats):
-            MNE = False
+            MNE_on = False
         if sum(state_times["FSP"][-1] == -num_repeats):
-            FSP = False
+            FSP_on = False
         if sum(state_times["det"][-1] == -num_repeats):
-            det = False
+            det_on = False
         if sum(state_times["subgradient"][-1] == -num_repeats):
-            sub = False
+            sub_on = False
     with open('runtime_res.pkl','wb') as f:
         pickle.dump([state_times, sample_times], f)
 

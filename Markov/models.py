@@ -9,7 +9,7 @@ import stormpy.pars
 import stormpy.examples
 import stormpy.examples.files
 from time import perf_counter as timer
-from multiprocessing import Pool
+import multiprocessing as mp
 import copy
 
 class base:
@@ -53,29 +53,69 @@ class MDP(base):
     Class for standard MDPs
     """
     
-    def fix_state_pol(self, pol, s):
-        num_enabled = len(self.Enabled_actions[s])
-        if num_enabled > 1:
+    parallel = False # Setting to true leads to slower performance for all models
+
+    def fix_state_pol(self, args):
+        pol_all = args[0]
+        s_all = args[1]
+        if type(s_all) is not list:
+            s_all = [s_all]
+            pol_all = [pol_all]
+        s_p_all = []
+        s_t_all = []
+        for s, pol in zip(s_all, pol_all):
             num_enabled = len(self.Enabled_actions[s])
-            trans_arr = np.zeros((num_enabled,len(self.States)))
-            for i, inds in enumerate(self.trans_ids[s]):
-                trans_arr[i][inds] = self.Transition_probs[s][i]
-            res = pol[self.Enabled_actions[s]]@trans_arr
-            s_primes = list(np.argwhere(res).flatten())
-            s_trans_probs = list(res[s_primes])
-        else:
-            s_primes = list(chain(*self.trans_ids[s]))
-            s_trans_probs = self.Transition_probs[s][0]
-        return s_primes, s_trans_probs
+            if num_enabled > 1:
+                num_enabled = len(self.Enabled_actions[s])
+                trans_arr = np.zeros((num_enabled,len(self.States)))
+                for i, inds in enumerate(self.trans_ids[s]):
+                    trans_arr[i][inds] = self.Transition_probs[s][i]
+                res = pol[self.Enabled_actions[s]]@trans_arr
+                s_primes = list(np.argwhere(res).flatten())
+                s_trans_probs = list(res[s_primes])
+            else:
+                s_primes = list(chain(*self.trans_ids[s]))
+                s_trans_probs = self.Transition_probs[s][0]
+            s_p_all.append(s_primes)
+            s_t_all.append(s_trans_probs)
+        return s_p_all, s_t_all
     
     def fix_pol(self, pol):
+        
+        num_batches = mp.cpu_count() 
+        
+        batch_size = len(self.States)//num_batches+1
+        
+        # parallelisation slows things down here...
+        #acts_bool = [[True  if a in model.Enabled_actions[s] else False for a in model.Actions] for s in model.States]
+        pol_list = [pol[s] for s in self.States]
+
+        if len(self.States) <= 320:
+            args = zip(pol_list, self.States)
+            
+            if not self.parallel:
+                res = [self.fix_state_pol(arg) for arg in args]
+            else:
+                with mp.Pool() as p:
+                    res = p.map(self.fix_state_pol, args)
+        else:
+            args_batched = [(pol_list[x:x+batch_size],self.States[x:x+batch_size]) for x in range(0,len(pol_list),batch_size) ]
+            if not self.parallel:
+                res = [self.fix_state_pol(arg) for arg in args_batched]
+            else:
+                with mp.Pool() as p:
+                    res = p.map(self.fix_state_pol, args_batched)#, chunksize=batch_size)
+        
         new_trans_probs = []
         new_trans_ids = []
-        parallel = True
-        for s in self.States:
-            s_primes, s_probs = self.fix_state_pol(pol[s],s)
-            new_trans_ids.append(s_primes)
-            new_trans_probs.append(s_probs)
+        for elem in res:
+            new_trans_ids += elem[0] 
+            new_trans_probs += elem[1] 
+        #import pdb; pdb.set_trace()
+        #for s in self.States:
+        #    s_primes, s_probs = self.fix_state_pol(pol[s],s)
+        #    new_trans_ids.append(s_primes)
+        #    new_trans_probs.append(s_probs)
         fixed_MC = MC()
         fixed_MC.States = self.States
         fixed_MC.Init_state = self.Init_state
@@ -87,44 +127,6 @@ class MDP(base):
         fixed_MC.Labelled_states = self.Labelled_states
         fixed_MC.opt = self.opt
         return fixed_MC
-
-    #def fix_pol(self, pol):
-    #    """
-    #    Fixes policy, returns an MC
-    #    """
-    #    fixed_MC = MC()
-    #    fixed_MC.States = self.States
-    #    fixed_MC.Init_state = self.Init_state
-    #    trans_probs = []
-    #    trans_ids = []
-    #    for s in self.States:
-    #        if len(self.Enabled_actions[s])>0:
-    #            trans_probs_s = []
-    #            trans_ids_s = []
-    #            for act_num, act in enumerate(self.Enabled_actions[s]):
-    #                act_prob = pol[s][act]
-    #                trans_probs_s_a = [act_prob*p for p in self.Transition_probs[s][act_num]]
-    #                trans_ids_s_a = self.trans_ids[s][act_num]
-    #                for i, s_prime in enumerate(trans_ids_s_a):
-    #                    if s_prime in trans_ids_s:
-    #                        trans_probs_s[trans_ids_s.index(s_prime)] += trans_probs_s_a[i]
-    #                    else:
-    #                        trans_probs_s.append(trans_probs_s_a[i])
-    #                        trans_ids_s.append(s_prime)
-    #            trans_probs.append(trans_probs_s)
-    #            trans_ids.append(trans_ids_s)
-    #        else:
-    #            trans_probs.append([])
-    #            trans_ids.append([])
-    #    fixed_MC.Transition_probs = trans_probs
-    #    fixed_MC.trans_ids = trans_ids
-    #    fixed_MC.Name = self.Name
-    #    fixed_MC.Formulae = self.Formulae
-    #    fixed_MC.Labels = self.Labels
-    #    fixed_MC.Labelled_states = self.Labelled_states
-    #    fixed_MC.opt = self.opt
-
-    #    return fixed_MC
 
 class iMDP(MDP):
     Transition_probs = None
@@ -210,7 +212,7 @@ class pMDP(MDP):
         return fixed_MDP
 
 
-class storm_MDP:
+class storm_MDP(MDP):
     mdp = None
     props = None
     
@@ -225,40 +227,6 @@ class storm_MDP:
     Formulae = None
     opt = "max"
 
-    def fix_state_pol(self, pol, s):
-        if len(self.mdp.states[s].actions) > 1:
-            num_enabled = len(self.Enabled_actions[s])
-            trans_arr = np.zeros((num_enabled,len(self.States)))
-            for i, inds in enumerate(self.trans_ids[s]):
-                trans_arr[i][inds] = self.Transition_probs[s][i]
-            res = pol[self.Enabled_actions[s]]@trans_arr
-            s_primes = list(np.argwhere(res).flatten())
-            s_trans_probs = list(res[s_primes])
-        else:
-            s_primes = list(chain(*self.trans_ids[s]))
-            s_trans_probs = self.Transition_probs[s][0]
-        return s_primes, s_trans_probs
-
-
-    def fix_pol(self, pol):
-        new_trans_probs = []
-        new_trans_ids = []
-        parallel = True
-        for s in self.States:
-            s_primes, s_probs = self.fix_state_pol(pol[s],s)
-            new_trans_ids.append(s_primes)
-            new_trans_probs.append(s_probs)
-        fixed_MC = MC()
-        fixed_MC.States = self.States
-        fixed_MC.Init_state = self.Init_state
-        fixed_MC.Transition_probs = new_trans_probs
-        fixed_MC.trans_ids = new_trans_ids
-        fixed_MC.Name = self.Name
-        fixed_MC.Formulae = self.Formulae
-        fixed_MC.Labels = self.Labels
-        fixed_MC.Labelled_states = self.Labelled_states
-        fixed_MC.opt = self.opt
-        return fixed_MC
 
 class storm_upMDP:
     opt = "max"
