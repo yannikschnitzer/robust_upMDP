@@ -18,7 +18,7 @@ import datetime
 
 
 class optimiser:
-    parallel = False
+    parallel_test = False
     def __init__(self):
         self.risk_func = None
         self.max_time = 100
@@ -77,7 +77,7 @@ class optimiser:
         else:
             args = [[model.fix_params(sample).Transition_probs] for sample in samples]
             #args = [[sample] for sample in samples]
-        if self.parallel:
+        if self.parallel_test:
             with mp.Pool() as p:
                 res = p.map(stormpy_partial, args)
         else:
@@ -244,8 +244,8 @@ class MNE(mixed_opt):
         pol, val = self.MNE_algo(payoffs, self.max_time, self.itts)
         if pol is not None:
             info = {"pols": pols, "all":(pol[0]@payoffs).flatten(), "ids":rel_samples}
-            pol = pol[0]
-            supps = np.argwhere(pol >= 1e-5)
+            pol = (pol[0], pols)
+            supps = np.argwhere(pol[0] >= 1e-5)
         else:
             supps = samples 
             info = None
@@ -256,7 +256,7 @@ class MNE(mixed_opt):
         return val, pol, supps, info
 
 class subgrad(optimiser):
-
+    parallel_grad=True
     def __init__(self, args, quiet = False):
         self.max_iters = args["sg_itts"]
         self.tol = args["tol"]
@@ -269,7 +269,6 @@ class subgrad(optimiser):
         self.supp_tol=0.05 #conservative but works
         
         self.risk_func = calc_eps_risk_complexity
-        self.parallel = True
 
     def solve(self, samples, model):
         start = time.perf_counter()
@@ -478,14 +477,14 @@ class subgrad(optimiser):
         if len(model.States) <= 320:
             args = zip(acts_bool, model.States)
             
-            if not self.parallel:
+            if not self.parallel_grad:
                 res = [grad_partial(arg) for arg in args]
             else:
                 with mp.Pool() as p:
                     res = p.map(grad_partial, args)
         else:
             args_batched = [(acts_bool[x:x+batch_size],model.States[x:x+batch_size]) for x in range(0,len(acts_bool),batch_size) ]
-            if not self.parallel:
+            if not self.parallel_grad:
                 res = [grad_partial(arg) for arg in args_batched]
             else:
                 with mp.Pool() as p:
@@ -513,6 +512,7 @@ class interval(optimiser):
         self.risk_func = calc_eps_risk_complexity
     
     def solve(self, samples, model):
+        print("--------------------\nStarting iMDP solver")
         iMDP = model.build_imdp(samples)
         supports = iMDP.supports
         IO = writer.PRISM_io(iMDP)
@@ -546,6 +546,7 @@ class thom_relax(thom_base):
         self.risk_func = calc_eps_risk_complexity
 
     def solve(self, samples, model):
+        print("--------------------\nStarting relaxed problem solver based on Thom's work")
         probs = self.calc_probs(model, samples)
         res, relaxers = self.optimise(probs, model.opt)
         return res, None, np.argwhere(relaxers >= 0), None
@@ -591,6 +592,7 @@ class thom_discard(thom_base):
             self.risk_func = calc_eps
 
     def solve(self, samples, model):
+        print("--------------------\nStarting Thom's solver")
         probs = self.calc_probs(model, samples)
         min_prob, discarded = self.discard(probs, model.opt)
         return min_prob, None, discarded, None

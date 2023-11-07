@@ -1,3 +1,4 @@
+from PAC.funcs import MC_sampler, MC_perturbed 
 
 class solver:
     """
@@ -15,10 +16,17 @@ class solver:
         self.info = None
 
         self.beta = args["beta"]
+        self.run_MC = args["MC"]
+        self.run_MC_pert = args["MC_pert"]
+        self.MC_samples = args["MC_samples"]
 
     def solve(self, samples, model):
         self.opt, self.opt_pol, self.supps, self.info = self.optimiser.solve(samples, model)
         self.risk = self.get_risk(self.beta, len(samples), len(self.supps))
+        if self.run_MC:
+            self.emp_risk = MC_sampler(model, self.MC_samples, self.opt, self.opt_pol)
+        if self.run_MC_pert:
+            self.emp_pert_risk = MC_perturbed(model, self.MC_samples, self.opt, self.opt_pol)
 
     def output(self):
         print("Found " + str(len(self.supps)) + " active constraints a posteriori")
@@ -28,3 +36,7 @@ class solver:
 
         print("Optimal satisfaction probability is found to be {:.3f}".format(self.opt))
 
+        if self.run_MC:
+            print("Empirical violation rate with {} samples found to be: {:.3f}".format(self.MC_samples, self.emp_risk))
+        if self.run_MC_pert:
+            print("Violation rate for perturbed problem with {} samples found to be: {:.3f}".format(self.MC_samples, self.emp_pert_risk))

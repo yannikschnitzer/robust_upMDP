@@ -45,7 +45,7 @@ opt_settings = {"model":{"parser":parse_model,
                     "args":[], 
                     "flags":["--MC_p"],
                     "default":False
-                    },
+                   },
                 "MC_samples":{
                     "parser":parse_num,
                     "args":[int, 1], 

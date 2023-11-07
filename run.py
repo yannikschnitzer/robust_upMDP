@@ -11,36 +11,27 @@ def main():
     args = get_args()
     samples = get_samples(args)
     
+    if args["file_write"]:
+        sys.stdout = open(args["file_write"],'wt')
+
     model = args["model"]
-
-    sub = solver(subgrad, args)
-    sub.solve(samples, model)
-    sub.output()
-
+    solvers = []
+    solvers.append(solver(subgrad, args))
     if not args["sg_only"]:
-        det_solver = solver(det, args)
-        det_solver.solve(samples, model)
-        det_solver.output()
-        
-        PNS_solver = solver(MNE, args, [PNS_algo])
-        PNS_solver.solve(samples, model)
-        PNS_solver.output()
-        
-        FSP_solver = solver(MNE, args, [FSP_algo])
-        FSP_solver.solve(samples, model)
-        FSP_solver.output()
-
-        iMDP_solver = solver(interval, args)
-        iMDP_solver.solve(samples, model)
-        iMDP_solver.output()
-        
-        thom_discard_solver = solver(thom_discard, args)
-        thom_discard_solver.solve(samples, model)
-        thom_discard_solver.output()
-        
-        thom_relax_solver = solver(thom_relax, args)
-        thom_relax_solver.solve(samples, model)
-        thom_relax_solver.output()
+        solvers.append(solver(det, args))
+        solvers.append(solver(MNE, args, [PNS_algo]))
+        solvers.append(solver(MNE, args, [FSP_algo]))
+        solvers.append(solver(interval, args))
+        solvers.append(solver(thom_discard, args))
+        solvers.append(solver(thom_relax, args))
+    
+    for sol in solvers:
+        if len(model.States)*len(model.Actions) < 1000:
+            sol.parallel_grad = False
+        if len(samples) < 50:
+            sol.parallel_test = False
+        sol.solve(samples, model)
+        sol.output() 
 
 if __name__=="__main__":
     main()
