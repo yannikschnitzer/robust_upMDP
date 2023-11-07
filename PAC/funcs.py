@@ -7,7 +7,7 @@ import Markov.models
 
 def MC_sampler(model, k, thresh, pol=None):
     inn_count = 0
-    for j in tqdm(range(k)):
+    for j in tqdm(range(k)): # We could parallelise this bit
         sample = Markov.models.MDP(model.sample_MDP())
         if pol is not None:
             if type(pol) is not tuple:

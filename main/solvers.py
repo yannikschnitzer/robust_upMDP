@@ -75,7 +75,7 @@ class optimiser:
         if paramed_models is not None:
             args = [[paramed_model] for paramed_model in paramed_models]
         else:
-            args = [[model.fix_params(sample).Transition_probs] for sample in samples]
+            args = [[copy.copy(model.fix_params(sample).Transition_probs)] for sample in samples]
             #args = [[sample] for sample in samples]
         if self.parallel_test:
             with mp.Pool() as p:
@@ -322,6 +322,7 @@ class subgrad(optimiser):
         else:
             best = 1
     
+        best_pol = pol
         for i in tqdm(range(self.max_iters)):
             if self.check_timeout(start):
                 break
@@ -520,6 +521,8 @@ class interval(optimiser):
         from opts import prism_folder  
         res, all_res, pol = IO.solve(prism_folder=prism_folder)
         res, _, _ = self.test_pol(model, samples, pol)
+        #if model.opt == "min":
+        #    res = 1-res # maybe?
         return res, pol, supports, None
 
 class thom_base(optimiser):

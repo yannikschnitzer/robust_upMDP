@@ -175,7 +175,8 @@ class pMDP(MDP):
                 fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
             elif "Pmin" in formula:
                 fixed_iMDP.Formulae.append("Pminmax"+formula[4:])
-        fixed_iMDP.Formulae = self.Formulae
+        #import pdb; pdb.set_trace()
+        #fixed_iMDP.Formulae = self.Formulae
         fixed_iMDP.Enabled_actions = self.Enabled_actions
         fixed_iMDP.trans_ids = self.trans_ids
         fixed_iMDP.opt = self.opt
@@ -285,7 +286,7 @@ class storm_upMDP:
                 fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
             elif "Pmin" in formula:
                 fixed_iMDP.Formulae.append("Pminmax"+formula[4:])
-        fixed_iMDP.Formulae = self.Formulae
+        #fixed_iMDP.Formulae = self.Formulae
         fixed_iMDP.Enabled_actions = self.Enabled_actions
         fixed_iMDP.trans_ids = self.trans_ids
         fixed_iMDP.opt = self.opt
