@@ -14,7 +14,7 @@ def main():
     max_samples = 1000
     samples_step = 500
 
-    min_states = 3
+    min_states = 1 # 
     max_states = 50
     states_step = 3
 
@@ -68,11 +68,11 @@ def main():
             if MNE_on:    
                 start = time.perf_counter()
                 PNS_solver.solve(samples, model)
-                mne_time = time.perf_counter()-start
+                MNE_time = time.perf_counter()-start
             if FSP_on:
                 start = time.perf_counter()
                 FSP_solver.solve(samples, model)
-                fsp_time = time.perf_counter()-start
+                FSP_time = time.perf_counter()-start
             
             start = time.perf_counter()
             iMDP_solver.solve(samples, model)
@@ -93,13 +93,13 @@ def main():
                 state_times["det"][-1].append(det_time)
             if sub_on:
                 state_times["subgradient"][-1].append(sub_time)
-        if sum(state_times["MNE"][-1] == -num_repeats):
+        if sum(state_times["MNE"][-1]) == -num_repeats:
             MNE_on = False
-        if sum(state_times["FSP"][-1] == -num_repeats):
+        if sum(state_times["FSP"][-1]) == -num_repeats:
             FSP_on = False
-        if sum(state_times["det"][-1] == -num_repeats):
+        if sum(state_times["det"][-1]) == -num_repeats:
             det_on = False
-        if sum(state_times["subgradient"][-1] == -num_repeats):
+        if sum(state_times["subgradient"][-1]) == -num_repeats:
             sub_on = False
     MNE_on = True
     FSP_on = True
@@ -131,11 +131,11 @@ def main():
             if MNE_on:    
                 start = time.perf_counter()
                 PNS_solver.solve(samples, model)
-                mne_time = time.perf_counter()-start
+                MNE_time = time.perf_counter()-start
             if FSP_on:
                 start = time.perf_counter()
                 FSP_solver.solve(samples, model)
-                fsp_time = time.perf_counter()-start
+                FSP_time = time.perf_counter()-start
             
             start = time.perf_counter()
             iMDP_solver.solve(samples, model)
@@ -155,13 +155,13 @@ def main():
                 sample_times["det"][-1].append(det_time)
             if sub_on:
                 sample_times["subgradient"][-1].append(sub_time)
-        if sum(state_times["MNE"][-1] == -num_repeats):
+        if sum(state_times["MNE"][-1]) == -num_repeats:
             MNE_on = False
-        if sum(state_times["FSP"][-1] == -num_repeats):
+        if sum(state_times["FSP"][-1]) == -num_repeats:
             FSP_on = False
-        if sum(state_times["det"][-1] == -num_repeats):
+        if sum(state_times["det"][-1]) == -num_repeats:
             det_on = False
-        if sum(state_times["subgradient"][-1] == -num_repeats):
+        if sum(state_times["subgradient"][-1]) == -num_repeats:
             sub_on = False
     with open('runtime_res.pkl','wb') as f:
         pickle.dump([state_times, sample_times], f)

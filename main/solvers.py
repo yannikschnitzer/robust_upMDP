@@ -33,16 +33,15 @@ class optimiser:
         else:
             return False
     
-    def call_stormpy(self, model, pol, all_samples):
+    def call_stormpy(self, test_MDP, pol, all_samples):
         res_list = []
         all_res_list = []
         sol_pol_list = []
         for sample in all_samples:
-            if type(sample) is list:
-                test_MDP = model
-                test_MDP.Transition_probs = sample
-            else:
-                test_MDP = model.fix_params(sample)
+            #if type(sample) is list:
+            test_MDP.Transition_probs = sample
+            #else:
+            #    test_MDP = model.fix_params(sample)
             
             if pol is not None:
                 test_model = test_MDP.fix_pol(pol)
@@ -64,8 +63,6 @@ class optimiser:
         num_states = len(model.States)
         num_acts = len(model.Actions)
         
-        if paramed_models is not None:
-            model = model.fix_params(samples[0])
     
         true_probs = []
         pols = []
@@ -80,12 +77,17 @@ class optimiser:
         # DEBUG:root:writing 0.095s
         # DEBUG:root:fixing pol 1.166s
         start = time.perf_counter()
-        stormpy_partial = partial(self.call_stormpy, model, pol)
+        if type(model) is Markov.models.storm_upMDP:
+            stormpy_partial = partial(self.call_stormpy, Markov.models.MDP(model.fix_params(samples[0]))
+                                        , pol)
+        else:
+            stormpy_partial = partial(self.call_stormpy, model.fix_params(samples[0]), pol)
         if paramed_models is not None:
             args = [[paramed_model] for paramed_model in paramed_models]
         else:
-            args = [[sample] for sample in samples]
-        if False: # Currently not working
+            args = [[model.fix_params(sample).Transition_probs] for sample in samples]
+            #args = [[sample] for sample in samples]
+        if self.parallel: # Currently not working, fails when paramed_models is None
             with mp.Pool() as p:
                 res = p.map(stormpy_partial, args)
         else:
@@ -297,7 +299,7 @@ class MNE(mixed_opt):
             pol = pol[0]
             supps = np.argwhere(pol >= 1e-5)
         else:
-            supps = None
+            supps = samples 
             info = None
         if val is None:
             val = -1
