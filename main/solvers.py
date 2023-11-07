@@ -84,7 +84,8 @@ class optimiser:
             res = [stormpy_partial(arg) for arg in args]
         for elem in res:
             pols += elem[2]
-            true_probs += elem[1]            if model.opt == "max":
+            true_probs += elem[1]            
+            if model.opt == "max":
                 if wc>min(elem[0]):
                     wc = min(elem[0])
             else:
