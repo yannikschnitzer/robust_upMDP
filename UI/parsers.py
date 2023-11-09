@@ -110,11 +110,11 @@ def parse_model(flag, opts):
                 edited_files.append(model_f)
                 shutil.copyfile(model_f, model_f+".old")
                 
-                search = "const int n;"
+                search = "const int N;"
                 replace = search[:-1] +"=" +split_inst[0] + ";"
                 replace_line(model_f, search, replace)
                 
-                search = "const int max;"
+                search = "const int MAX;"
                 replace = search[:-1] +"=" +split_inst[1] + ";"
                 replace_line(model_f, search, replace)
             if model_name == "sav":

@@ -93,13 +93,13 @@ def main():
                 state_times["det"][-1].append(det_time)
             if sub_on:
                 state_times["subgradient"][-1].append(sub_time)
-        if sum(state_times["MNE"][-1]) == -num_repeats:
+        if sum(state_times["MNE"][-1]) >= num_repeats*args["timeout"]:
             MNE_on = False
-        if sum(state_times["FSP"][-1]) == -num_repeats:
+        if sum(state_times["FSP"][-1]) >= num_repeats*args["timeout"]:
             FSP_on = False
-        if sum(state_times["det"][-1]) == -num_repeats:
+        if sum(state_times["det"][-1]) >= num_repeats*args["timeout"]:
             det_on = False
-        if sum(state_times["subgradient"][-1]) == -num_repeats:
+        if sum(state_times["subgradient"][-1]) >= num_repeats*args["timeout"]:
             sub_on = False
     MNE_on = True
     FSP_on = True
@@ -155,13 +155,13 @@ def main():
                 sample_times["det"][-1].append(det_time)
             if sub_on:
                 sample_times["subgradient"][-1].append(sub_time)
-        if sum(state_times["MNE"][-1]) == -num_repeats:
+        if sum(state_times["MNE"][-1])  >= num_repeats*args["timeout"]:
             MNE_on = False
-        if sum(state_times["FSP"][-1]) == -num_repeats:
+        if sum(state_times["FSP"][-1])  >= num_repeats*args["timeout"]:
             FSP_on = False
-        if sum(state_times["det"][-1]) == -num_repeats:
+        if sum(state_times["det"][-1])  >= num_repeats*args["timeout"]:
             det_on = False
-        if sum(state_times["subgradient"][-1]) == -num_repeats:
+        if sum(state_times["subgradient"][-1])  >= num_repeats*args["timeout"]:
             sub_on = False
     with open('runtime_res.pkl','wb') as f:
         pickle.dump([state_times, sample_times], f)

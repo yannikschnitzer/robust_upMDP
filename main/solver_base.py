@@ -1,4 +1,5 @@
 from PAC.funcs import MC_sampler, MC_perturbed 
+import time
 
 class solver:
     """
@@ -21,14 +22,18 @@ class solver:
         self.MC_samples = args["MC_samples"]
 
     def solve(self, samples, model):
+        start = time.perf_counter()
         self.opt, self.opt_pol, self.supps, self.info = self.optimiser.solve(samples, model)
         self.risk = self.get_risk(self.beta, len(samples), len(self.supps))
+        self.runtime = time.perf_counter()-start
         if self.run_MC:
             self.emp_risk = MC_sampler(model, self.MC_samples, self.opt, self.opt_pol)
         if self.run_MC_pert:
             self.emp_pert_risk = MC_perturbed(model, self.MC_samples, self.opt, self.opt_pol)
 
     def output(self):
+        print("Solving took {:.2f}s".format(self.runtime))
+
         print("Found " + str(len(self.supps)) + " active constraints a posteriori")
 
         print("Hence, a posteriori, violation probability is bounded by {:.3f}, with confidence {:.3f}"
