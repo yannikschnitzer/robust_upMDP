@@ -1,2 +1,11 @@
 Drone without paralellisation: 2740s for gradient
 Drone with parallelisation: 195s!!!!! For gradient
+
+Rerun drone with speedups
+
+
+consensus tests with different start points:
+-Approximately same res (range 2*10^-3)
+-Different policies
+-Same supps
+-When counting supps we looked at, only found 1 for all start points?? Found 7 when counting "active"
