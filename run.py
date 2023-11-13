@@ -34,7 +34,6 @@ def main():
             sol.parallel_test = False
         sol.solve(samples, model)
         sol.output() 
-    import pdb; pdb.set_trace()
 
 if __name__=="__main__":
     main()

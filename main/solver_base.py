@@ -24,7 +24,10 @@ class solver:
     def solve(self, samples, model):
         start = time.perf_counter()
         self.opt, self.opt_pol, self.supps, self.info = self.optimiser.solve(samples, model)
-        self.risk = self.get_risk(self.beta, len(samples), len(self.supps))
+        if self.supps is not None:
+            self.risk = self.get_risk(self.beta, len(samples), len(self.supps))
+        else:
+            self.risk = 1
         self.runtime = time.perf_counter()-start
         if self.run_MC:
             self.emp_risk = MC_sampler(model, self.MC_samples, self.opt, self.opt_pol)

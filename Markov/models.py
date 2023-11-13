@@ -150,7 +150,7 @@ class pMDP(MDP):
                     min_p = 1
                     max_p = 0
                     for param in params:
-                        new_p = self.Transition_probs[s][a_id][s_prime_id](param)
+                        new_p = float(self.Transition_probs[s][a_id][s_prime_id](param))
                         min_p = min(min_p, new_p)
                         max_p = max(max_p, new_p)
                     trans_probs_s_a.append((min_p, max_p))

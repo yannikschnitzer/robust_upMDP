@@ -290,7 +290,7 @@ class PRISM_io:
                         substring_start = str(i) + ' '+str(choice)
                         
                         prob_idxs = [j for j in m.trans_ids[i][a_idx]]
-                       
+                         
                         trans_strings = ["[" + str(dec_round(prob[0],6)) + ","+str(dec_round(prob[1],6))+"]"
                                                     for prob in m.Transition_probs[i][a_idx]]
                         
