@@ -28,13 +28,13 @@ def main():
         solvers.append(solver(thom_relax, args))
     
     for sol in solvers:
-        if len(model.States)*len(model.Actions) < 1000:
-            sol.parallel_grad = False
+        if len(model.States) < 100:
+            sol.optimiser.parallel_grad =False
         if len(samples) < 50:
             sol.parallel_test = False
         sol.solve(samples, model)
         sol.output() 
-        import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
 
 if __name__=="__main__":
     main()

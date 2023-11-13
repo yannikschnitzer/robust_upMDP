@@ -414,60 +414,32 @@ class subgrad(optimiser):
     
         return best, best_pol, active_sg, info
    
-    def grad_state(self, nom_MC, MDP_trans, MDP_ids, args): #, actions_bool_set, s_set):
+    def grad_state(self, nom_MC_sol, MDP_trans, MDP_ids, args): #, actions_bool_set, s_set):
         actions_bool_set = args[0]
         s_set = args[1]
         grads = []
         if type(actions_bool_set[0]) is not list:
             actions_bool_set = [actions_bool_set]
             s_set = [s_set]
+        
         for actions_bool, s in zip(actions_bool_set, s_set):
             grad = np.zeros((1, len(actions_bool)))
-            nom_ids = copy.copy(nom_MC.trans_ids)
-            nom_probs = copy.copy(nom_MC.Transition_probs)
             if sum(actions_bool) > 1:
-                nom_MC_s = []
-                nom_MC.trans_ids = copy.copy(nom_ids)
-                nom_MC.Transition_probs = copy.copy(nom_probs)
                 a_counter = 0
                 for a_id, a in enumerate(actions_bool):
                     if a:
                         tic = time.perf_counter()
-                        grad_finder = np.zeros(len(actions_bool))
-                        grad_finder[a_id] = 1
                         
                         s_primes = MDP_ids[s][a_counter]
                         s_probs = MDP_trans[s][a_counter]
-                        
-                        #s_primes, s_probs = test_MDP.fix_state_pol(grad_finder, s) # 
-                        
-                        nom_MC.trans_ids[s] = s_primes
-                        nom_MC.Transition_probs[s] = s_probs
-                        nom_MC_s.append(copy.deepcopy(nom_MC))
-                        a_counter += 1
-                res = self.solve_MC(nom_MC_s)
-                a_counter = 0
-                for a_id, a in enumerate(actions_bool): 
-                    if a:
-                        grad[0, a_id] = res[a_counter]
+
+                        grad[0,a_id] = sum([prob*nom_MC_sol[s_prime] for prob, s_prime in zip(s_probs, s_primes)])
+
                         a_counter += 1
             grads.append(grad)
         return grads
 
-    def solve_MC(self, MC_list):
-        full_res = []
-        for MC in MC_list:
-            IO = writer.stormpy_io(MC)
-                #IO = writer.stormpy_io(nom_MC)
-                
-            IO.write()
-    
-            res, _, _ = IO.solve()
-            full_res.append(res[0])
-        return full_res
-
     def find_grad(self, model, pol, worst_sample):
-        
         grad = np.zeros_like(pol)
         norm = 0
         time_sum = 0
@@ -475,14 +447,15 @@ class subgrad(optimiser):
         test_MDP = model.fix_params(worst_sample)
         nom_MC = test_MDP.fix_pol(pol)
         
+        _, nom_MC_sol, _ = self.test_pol(model, [worst_sample], pol)
+        nom_MC_sol = nom_MC_sol.flatten() 
         nom_MC_list = []
         s_list = []
         
         num_batches = mp.cpu_count() 
         batch_size = len(model.States)//num_batches+1
-        
         acts_bool = [[True  if a in model.Enabled_actions[s] else False for a in model.Actions] for s in model.States]
-        grad_partial = partial(self.grad_state, nom_MC, test_MDP.Transition_probs, test_MDP.trans_ids) 
+        grad_partial = partial(self.grad_state, nom_MC_sol, test_MDP.Transition_probs, test_MDP.trans_ids) 
         pre_grad = time.perf_counter()
         if len(model.States) <= 320:
             args = zip(acts_bool, model.States)
