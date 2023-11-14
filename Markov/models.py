@@ -41,6 +41,13 @@ class base:
             self.Formulae = model.Formulae
             self.opt = model.opt
             self.Enabled_actions = model.Enabled_actions
+    
+    def check_timeout(self, start):
+        if time.perf_counter() - start > self.max_time:
+            print("Timed out!")
+            return True
+        else:
+            return False
 
 class MC(base):
     """
@@ -137,35 +144,50 @@ class pMDP(MDP):
     Transition probabilities should now be functions over parameters
     """
     def build_imdp(self, params):
+        start = time.perf_counter()
         fixed_iMDP = iMDP()
         fixed_iMDP.States = self.States
         fixed_iMDP.Actions = self.Actions
         fixed_iMDP.Init_state = self.Init_state
         trans_probs = []
+        
+        fixed_iMDP.supports = set()
+        
         for s in self.States:
+            if self.check_timeout(start):
+                return None
             trans_probs_s = []
             for a_id, a in enumerate(self.Enabled_actions[s]):
                 trans_probs_s_a = []
                 for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
                     min_p = 1
                     max_p = 0
-                    for param in params:
+                    supps = [-1, -1]
+                    for i, param in enumerate(params):
                         new_p = float(self.Transition_probs[s][a_id][s_prime_id](param))
-                        min_p = min(min_p, new_p)
-                        max_p = max(max_p, new_p)
+                        if new_p < min_p:
+                            supps[0] = i
+                            min_p = new_p
+                        elif new_p > max_p:
+                            supps[1] = i
+                            max_p = new_p
                     trans_probs_s_a.append((min_p, max_p))
+                    if self.paramed[s][a_id][s_prime_id]:
+                        fixed_iMDP.supports.add(supps[0])
+                        fixed_iMDP.supports.add(supps[1])
                 trans_probs_s.append(trans_probs_s_a)
             trans_probs.append(trans_probs_s)
         fixed_iMDP.Transition_probs = trans_probs
-        fixed_iMDP.supports = set()
-        for s in self.States:
-            for a_id, a in enumerate(self.Enabled_actions[s]):
-                for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
-                    if self.paramed[s][a_id][s_prime_id]:
-                        for i, param in enumerate(params):
-                            p = self.Transition_probs[s][a_id][s_prime_id](param)
-                            if p in trans_probs[s][a_id][s_prime_id]: 
-                                fixed_iMDP.supports.add(i) # if sample defines ub OR lb, might be support
+        #for s in self.States:`
+        #    if self.check_timeout(start):
+        #        return None
+        #    for a_id, a in enumerate(self.Enabled_actions[s]):
+        #        for s_prime_id, s_prime in enumerate(self.trans_ids[s][a_id]):
+        #            if self.paramed[s][a_id][s_prime_id]:
+        #                for i, param in enumerate(params):
+        #                    p = self.Transition_probs[s][a_id][s_prime_id](param)
+        #                    if p in trans_probs[s][a_id][s_prime_id]: 
+        #                        fixed_iMDP.supports.add(i) # if sample defines ub OR lb, might be support
         fixed_iMDP.Labels = self.Labels
         fixed_iMDP.Labelled_states = self.Labelled_states
         fixed_iMDP.Name = self.Name
@@ -232,6 +254,16 @@ class storm_MDP(MDP):
 class storm_upMDP:
     opt = "max"
     
+    def parameter_dist(self):
+        if "coin" in self.filename:
+            s = np.random.uniform(0.2, 0.8)
+        
+        else:
+            #s = np.random.uniform(1e-5, 1-1e-5) # This was Thom's distribution
+            s = (np.pi+np.random.vonmises(0,5))/(2*np.pi) # This is a more interesting distribution
+        return s
+
+
     def build_imdp(self, params):
         if str(self.model.model_type)=='ModelType.DTMC':
             instantiator = stormpy.pars.PDtmcInstantiator(self.model)
@@ -334,11 +366,13 @@ class storm_upMDP:
         else:
             
             for x in self.params:
-                if "coin" in self.filename:
-                    s = np.random.uniform(0.2, 0.8)
+                s = self.parameter_dist()
+                #if "coin" in self.filename:
+                #    s = np.random.uniform(0.2, 0.8)
         
-                else:
-                    s = np.random.uniform(1e-5,1-1e-5)
+                #else:
+                #    s = np.random.uniform(1e-5,1-1e-5)
+
         
                 point[x] = stormpy.RationalRF(s)
         

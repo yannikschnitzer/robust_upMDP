@@ -173,7 +173,8 @@ def sample_MDP(parameters, model, model_file,
                 s = np.random.uniform(0.2, 0.8)
     
             else:
-                s = np.random.uniform(1e-5,1-1e-5)
+                s = np.random.uniform(0.5,0.8)
+                #s = np.random.uniform(1e-5,1-1e-5)
     
             point[x] = stormpy.RationalRF(s)
     

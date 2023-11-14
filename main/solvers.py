@@ -256,6 +256,206 @@ class MNE(mixed_opt):
             val = -val
         return val, pol, supps, info
 
+class bellman(optimiser):
+    parallel_grad=False#True
+    def __init__(self, args, quiet = False):
+        self.max_iters = args["sg_itts"]
+        self.tol = args["tol"]
+        self.init_step = args["init_step"]
+        self.step_exp = args["step_exp"]
+        self.max_time = args["timeout"]
+        self.quiet = quiet
+        #supp_tol=0.05
+        #supp_tol =55 0*tol
+        self.supp_tol=0.05 #conservative but works
+        
+        self.risk_func = calc_eps_risk_complexity
+
+    def solve(self, samples, model):
+        start = time.perf_counter()
+        if not self.quiet:
+            print("--------------------\nStarting Bellman Policy Iteration")
+       
+        if self.quiet:
+            def tqdm(item):
+                return item
+        else:
+            from tqdm import tqdm
+        sample_trans_probs = []
+        for sample in samples:
+            new_MDP = model.fix_params(sample)
+            sample_trans_probs.append(copy.copy(new_MDP.Transition_probs))
+    
+        num_states = len(model.States)
+        num_acts = len(model.Actions)
+
+        pol = np.zeros((num_states, num_acts))
+        
+        wc_hist = []
+        best_hist = []
+        tic = time.perf_counter()
+        
+        for s in model.States:
+            a = np.random.choice(model.Enabled_actions[s])
+            pol[s,a] = 1
+        wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
+        
+        worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        worst = np.random.choice(worst.flatten())
+        toc = time.perf_counter()
+        logging.debug("Time for finding worst case: {:.3f}s".format(toc-tic)) # This is also done every iteration, could be sped up but takes ~6/1500 the time
+        best_worst_pol = self.test_pol(model, [samples[worst]])[2][0]
+        #test_wc, test_probs, _ = self.test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
+        #test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
+        #if worst in test_worst:
+        #    info = {"hist":[test_wc], "all":test_probs[:, model.Init_state]}
+        #    if not self.quiet:
+        #        print("Worst case holds with deterministic policy, deterministic is optimal")
+        #    return test_wc, best_worst_pol, test_worst, info
+        #pol = 0.1*pol + 0.9*best_worst_pol # a nicer start point
+        
+        wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
+        worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        worst = np.random.choice(worst.flatten())
+    
+        if model.opt == "max":
+            best = 0
+        else:
+            best = 1
+    
+        best_pol = pol
+        alternative_supps = set()
+        for i in tqdm(range(self.max_iters)):
+            if self.check_timeout(start):
+                break
+                #return -1, None, None, None
+            time_start = time.perf_counter()
+            
+            old_pol = np.copy(pol)
+            alternative_supps.add(worst)
+            pol = self.find_pol(model, pol, samples[worst])
+            #grad_norm = np.linalg.norm(grad, ord=np.inf)
+             
+            time_grads = time.perf_counter()-time_start
+            #if time_grads > 2:
+            #    import pdb; pdb.set_trace()
+            logging.debug("Total time for finding policy: {:.3f}".format(time_grads))
+    
+            wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs) # This is taking a little while? (like 1 min, could probably speed up)
+            worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+            worst = np.random.choice(worst.flatten())
+            wc_hist.append(wc)
+            if model.opt == "max":
+                if wc > best:
+                    best = wc
+                    best_pol = pol
+            else:
+                if wc < best:
+                    best = wc
+                    best_pol = pol
+            best_hist.append(best)
+            logging.info("Iteration: {}".format(i+1))
+            logging.info("Current value: {:.6f}, with sample {}".format(wc, worst))
+            #logging.info("Policy inf norm change: {:.3f}".format(np.linalg.norm(pol-old_pol, ord=np.inf)))
+            if len(wc_hist) >= 2:
+                change=abs(wc_hist[-2]-wc_hist[-1])
+                logging.info("Value change: {:.6f}".format(change))
+                if change < self.tol:
+                    break
+        final_time = time.perf_counter() - start
+        print("Bellman Policy iteration took {:.3f}s".format(final_time))
+        wc, true_probs, _ = self.test_pol(model, samples, best_pol, paramed_models = sample_trans_probs)
+        if model.opt == "max":
+            active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+self.supp_tol) # this tol is hard to tune...
+        else:
+            active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-self.supp_tol)
+        info = {"hist":best_hist, "all":true_probs[:, model.Init_state]}
+    
+        return best, best_pol, active_sg, info
+
+    def find_pol(self, model, pol, worst_sample):
+        
+        test_MDP = model.fix_params(worst_sample)
+        nom_MC = test_MDP.fix_pol(pol)
+        
+        _, nom_MC_sol, _ = self.test_pol(model, [worst_sample], pol)
+        nom_MC_sol = nom_MC_sol.flatten() 
+        nom_MC_list = []
+        s_list = []
+        
+        num_batches = mp.cpu_count() 
+        batch_size = len(model.States)//num_batches+1
+        acts_bool = [[True  if a in model.Enabled_actions[s] else False for a in model.Actions] for s in model.States]
+        grad_partial = partial(self.pol_state, nom_MC_sol, test_MDP.Transition_probs, test_MDP.trans_ids, model.opt) 
+        pre_grad = time.perf_counter()
+        if len(model.States) <= 320:
+            args = zip(acts_bool, model.States)
+            
+            if not self.parallel_grad:
+                res = [grad_partial(arg) for arg in args]
+            else:
+                with mp.Pool() as p:
+                    res = p.map(grad_partial, args)
+        else:
+            args_batched = [(acts_bool[x:x+batch_size],model.States[x:x+batch_size]) for x in range(0,len(acts_bool),batch_size) ]
+            if not self.parallel_grad:
+                res = [grad_partial(arg) for arg in args_batched]
+            else:
+                with mp.Pool() as p:
+                    res = p.map(grad_partial, args_batched)#, chunksize=batch_size)
+
+        del(acts_bool)
+        res_unbatched = []
+        for elem in res:
+            res_unbatched += elem
+        del(res)
+        new_pol = np.vstack(res_unbatched)
+
+        time_grad = time.perf_counter()-pre_grad
+        logging.debug("time for grad: "+str(time_grad))
+        pre_norming = time.perf_counter()
+        
+        return new_pol 
+
+    def pol_state(self, nom_MC_sol, MDP_trans, MDP_ids, opt, args): #, actions_bool_set, s_set):
+        actions_bool_set = args[0]
+        s_set = args[1]
+        pols = []
+        if type(actions_bool_set[0]) is not list:
+            actions_bool_set = [actions_bool_set]
+            s_set = [s_set]
+        
+        for actions_bool, s in zip(actions_bool_set, s_set):
+            if opt == "max":
+                best = 0
+            else:
+                best = 1
+            pol = np.zeros((1, len(actions_bool)))
+            a_counter = 0
+            for a_id, a in enumerate(actions_bool):
+                if a:
+                    tic = time.perf_counter()
+                    
+                    s_primes_sol = nom_MC_sol[MDP_ids[s][a_counter]]
+                    s_probs = np.array(MDP_trans[s][a_counter])
+                    curr_val = s_probs.T@s_primes_sol
+                    # We could do SGD, by evaluating gradient wrt a single run, this might offer some speed up, but probably not much
+                    if opt == "max":
+                        if  curr_val >= best:
+                            best = curr_val
+                            pol[0,:] = 0
+                            pol[0, a_id] = 1
+                    else:
+                        if curr_val <= best:
+                            best = curr_val
+                            pol[0,:] = 0
+                            pol[0, a_id] = 1
+
+                    a_counter += 1
+            pols.append(pol)
+        return pols
+
+
 class subgrad(optimiser):
     parallel_grad=False#True
     def __init__(self, args, quiet = False):
@@ -286,8 +486,6 @@ class subgrad(optimiser):
             new_MDP = model.fix_params(sample)
             sample_trans_probs.append(copy.copy(new_MDP.Transition_probs))
     
-        arr = model.get_trans_arr()
-    
         num_states = len(model.States)
         num_acts = len(model.Actions)
 
@@ -312,13 +510,13 @@ class subgrad(optimiser):
         toc = time.perf_counter()
         logging.debug("Time for finding worst case: {:.3f}s".format(toc-tic)) # This is also done every iteration, could be sped up but takes ~6/1500 the time
         best_worst_pol = self.test_pol(model, [samples[worst]])[2][0]
-        test_wc, test_probs, _ = self.test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
-        test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
-        if worst in test_worst:
-            info = {"hist":[test_wc], "all":test_probs[:, model.Init_state]}
-            if not self.quiet:
-                print("Worst case holds with deterministic policy, deterministic is optimal")
-            return test_wc, best_worst_pol, test_worst, info
+        #test_wc, test_probs, _ = self.test_pol(model, samples, best_worst_pol, paramed_models = sample_trans_probs)
+        #test_worst = np.argwhere(test_probs[:,model.Init_state]==test_wc).flatten()
+        #if worst in test_worst:
+        #    info = {"hist":[test_wc], "all":test_probs[:, model.Init_state]}
+        #    if not self.quiet:
+        #        print("Worst case holds with deterministic policy, deterministic is optimal")
+        #    return test_wc, best_worst_pol, test_worst, info
         pol = 0.1*pol + 0.9*best_worst_pol # a nicer start point
         
         wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
@@ -498,14 +696,15 @@ class interval(optimiser):
     def solve(self, samples, model):
         print("--------------------\nStarting iMDP solver")
         iMDP = model.build_imdp(samples)
-        supports = iMDP.supports
-        IO = writer.PRISM_io(iMDP)
-        IO.write()
-        from opts import prism_folder  
-        res, all_res, pol = IO.solve(prism_folder=prism_folder)
-        res, _, _ = self.test_pol(model, samples, pol)
-        #if model.opt == "min":
-        #    res = 1-res # maybe?
+        if iMDP is not None:
+            supports = iMDP.supports
+            IO = writer.PRISM_io(iMDP)
+            IO.write()
+            from opts import prism_folder  
+            res, all_res, pol = IO.solve(prism_folder=prism_folder)
+            res, _, _ = self.test_pol(model, samples, pol)
+        else:
+            return None, None, None, None
         return res, pol, supports, None
 
 class thom_base(optimiser):

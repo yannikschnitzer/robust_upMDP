@@ -8,7 +8,7 @@ const double p4; // in [0.2 , 0.8]
 
 
 const int N=4;
-const int K=4;
+const int K;
 const int range = 2*(K+1)*N;
 const int counter_init = (K+1)*N;
 const int left = N;

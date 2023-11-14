@@ -1,5 +1,5 @@
-python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 2,2 -vo --file_out con_22.txt --tol 1e-4 --save_res consensus_22_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
-python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 2,32 -vo --file_out con_232.txt --tol 1e-4 --save_res consensus_232_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
+#python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 2,2 -vo --file_out con_22.txt --tol 1e-4 --save_res consensus_22_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
+#python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 2,32 -vo --file_out con_232.txt --tol 1e-4 --save_res consensus_232_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
 python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 4,2 -vo --file_out con_42.txt --tol 1e-4 --save_res consensus_42_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
 python run.py --sg_itt 250 --init_step 1000 --model consensus --inst 4,4 -vo --file_out con_44.txt --tol 1e-4 --save_res consensus_44_res.txt -N 200 --to 3600 --MC --MC_p --sg_only --MC_samples 1000
 

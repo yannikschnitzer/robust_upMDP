@@ -8,7 +8,7 @@ import pickle
 import time
 
 def main():
-    num_repeats = 1
+    num_repeats = 5
     
     min_samples = 100
     max_samples = 1000
