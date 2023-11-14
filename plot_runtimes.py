@@ -9,7 +9,7 @@ fig, ax = plt.subplots()
 for elem in res_states:
     list_times = [time[0] for time in res_states[elem] if len(time) > 0]
     list_times = [time for time in list_times if time < 3600] 
-    ax.plot(list_times, label=elem)
+    ax.semilogy(list_times, label=elem)
 ax.legend(loc="upper left")
 plt.savefig("runtimes_plot.pdf")
 
