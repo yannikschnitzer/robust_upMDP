@@ -18,6 +18,19 @@ for elem in res_states:
 ax.legend(loc="upper left")
 ax.set_xlabel(r'MDP size $|\mathcal{S}|\cdot|\mathcal{A}|$')
 ax.set_ylabel("runtime (seconds)")
-ax.set_title("Runtime vs MDP size for all algorithms")
-plt.savefig("runtimes_plot.pdf")
+ax.set_title("Runtime vs MDP size")
+plt.savefig("runtimes_plot_states.pdf")
 
+num_samples = list(range(100,1000,50))
+
+fig, ax = plt.subplots()
+for elem in res[1]:
+    list_times = [time[0] for time in res[1][elem] if len(time) > 0]
+    list_times = [time for time in list_times if time < 3600] 
+    x_vals = num_samples[:len(list_times)] 
+    ax.loglog(x_vals, list_times, label=elem)
+ax.legend(loc="upper left")
+ax.set_xlabel('Number of Samples')
+ax.set_ylabel("runtime (seconds)")
+ax.set_title("Runtime vs Sample Size")
+plt.savefig("runtimes_plot_samples.pdf")
