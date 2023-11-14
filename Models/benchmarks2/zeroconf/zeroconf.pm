@@ -59,7 +59,7 @@ const bool reset=false;
 //const double loss; // probability of message loss param??
 
 //const int N=2;
-const int K;
+const int K=2;
 const double loss;
 
 // PROBABILITIES

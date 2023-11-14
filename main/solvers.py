@@ -432,10 +432,9 @@ class subgrad(optimiser):
                         
                         s_primes_sol = nom_MC_sol[MDP_ids[s][a_counter]]
                         s_probs = np.array(MDP_trans[s][a_counter])
-                        # Speed this up with numpy
                         # We could do SGD, by evaluating gradient wrt a single run, this might offer some speed up, but probably not much
+                        
                         grad[0, a_id] = s_probs.T@s_primes_sol
-                        #grad[0,a_id] = sum([prob*nom_MC_sol[s_prime] for prob, s_prime in zip(s_probs, s_primes)])
 
                         a_counter += 1
             grads.append(grad)

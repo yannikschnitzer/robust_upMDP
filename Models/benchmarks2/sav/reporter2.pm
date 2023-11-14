@@ -21,12 +21,12 @@ const double pLMin=pL*(1-pLDiff);
 const double pHMin=pH*(1-pHDiff);
 
 // Grid size
-const int Xsize;
-const int Ysize;
+const int Xsize=6;
+const int Ysize=6;
 // Number of tries before an error
-const int MAXTRIES;
+const int MAXTRIES=2;
 // Ball within the robot has to move.
-const int B;
+const int B=2;
 
 
 formula T = (xLoc = Xsize & yLoc = Ysize);

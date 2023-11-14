@@ -152,7 +152,7 @@ opt_settings = {"model":{"parser":parse_model,
 
 inst_opts = {"brp":["256,15","4096,5"],
              "consensus": ["2,2","2,32","4,2","4,4"],
-             "sav": ["2,6,2,2", "2,100,10,10", "4,6,2,2", "10,3,3"],
+             "sav": ["2,6,2,2", "2,100,10,10", "4,6,2,2", "4,10,3,3"],
              "zeroconf": ["2", "5"],
              "drone": ["uniform","x-neg-bias","y-pos-bias"], 
              }

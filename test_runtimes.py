@@ -12,7 +12,7 @@ def main():
     
     min_samples = 100
     max_samples = 1000
-    samples_step = 500
+    samples_step = 50
 
     min_states = 1 # 
     max_states = 50
