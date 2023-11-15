@@ -27,7 +27,7 @@ for elem in res_states:
 
     all_err = np.vstack((bottom_err, top_err))
 
-    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem)
+    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem, capsize=4)
     #ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
     #ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
     
@@ -66,7 +66,7 @@ for elem in res[1]:
 
     all_err = np.vstack((bottom_err, top_err))
 
-    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem)
+    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem, capsize=4)
     #ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
     #ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
 ax.legend(loc="upper right")
