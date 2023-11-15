@@ -31,6 +31,7 @@ for elem in res_states:
 ax.legend(loc="upper right")
 ax.set_xlabel(r'MDP size $|\mathcal{S}|\cdot|\mathcal{A}|$')
 ax.set_ylabel("runtime (seconds)")
+ax.set_ylim(top=3600)
 ax.set_title("Runtime vs MDP size")
 plt.savefig("runtimes_plot_states.pdf")
 
@@ -57,5 +58,6 @@ for elem in res[1]:
 ax.legend(loc="upper right")
 ax.set_xlabel('Number of Samples')
 ax.set_ylabel("runtime (seconds)")
+ax.set_ylim(top=3600)
 ax.set_title("Runtime vs Sample Size")
 plt.savefig("runtimes_plot_samples.pdf")
