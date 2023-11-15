@@ -20,7 +20,7 @@ for elem in res_states:
     min_times = np.min(list_times, axis=0)
     max_times = np.max(list_times, axis=0)
     mean_times = np.mean(list_times, axis=0)
-    ax.fill_between(x_vals, min_times, max_times)
+    ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
     ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
     
     #ax.boxplot(list_times, vert=True, labels=x_vals)
