@@ -22,8 +22,14 @@ for elem in res_states:
     min_times = np.min(list_times, axis=0)
     max_times = np.max(list_times, axis=0)
     mean_times = np.mean(list_times, axis=0)
-    ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
-    ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
+    top_err = max_times-mean_times
+    bottom_err = mean_times-min_times
+
+    all_err = np.vstack((bottom_err, top_err))
+
+    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem)
+    #ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
+    #ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
     
     #ax.boxplot(list_times, vert=True, labels=x_vals)
     
@@ -31,6 +37,8 @@ for elem in res_states:
 ax.legend(loc="upper right")
 ax.set_xlabel(r'MDP size $|\mathcal{S}|\cdot|\mathcal{A}|$')
 ax.set_ylabel("runtime (seconds)")
+ax.set_yscale('log')
+ax.set_xscale('log')
 ax.set_ylim(top=3600)
 ax.set_title("Runtime vs MDP size")
 plt.savefig("runtimes_plot_states.pdf")
@@ -53,11 +61,19 @@ for elem in res[1]:
     min_times = np.min(list_times, axis=0)
     max_times = np.max(list_times, axis=0)
     mean_times = np.mean(list_times, axis=0)
-    ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
-    ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
+    top_err = max_times-mean_times
+    bottom_err = mean_times-min_times
+
+    all_err = np.vstack((bottom_err, top_err))
+
+    ax.errorbar(x_vals, mean_times, yerr=all_err, marker="x", linestyle="--", label=elem)
+    #ax.fill_between(x_vals, min_times, max_times, alpha=0.7)
+    #ax.loglog(x_vals, mean_times, marker='x', linestyle="--", label=elem)
 ax.legend(loc="upper right")
 ax.set_xlabel('Number of Samples')
 ax.set_ylabel("runtime (seconds)")
+ax.set_yscale('log')
+ax.set_xscale('log')
 ax.set_ylim(top=3600)
 ax.set_title("Runtime vs Sample Size")
 plt.savefig("runtimes_plot_samples.pdf")
