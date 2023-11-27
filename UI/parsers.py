@@ -51,6 +51,10 @@ def parse_str(flag, opts):
 def parse_model(flag, opts):
     model_name = parse_str(flag, opts)
     edited_files = []
+    try:
+        gamma = parse_num("-gamma", [float, 0, 1])
+    except:
+        gamma = 0.99
     if model_name == "test":
         model = test.get_model()
     elif model_name == "test2":
@@ -86,6 +90,7 @@ def parse_model(flag, opts):
             bisim = "none"
         else:
             inst = parse_str("--inst", inst_opts[model_name])
+
             if model_name == "consensus":
                 split_inst = inst.split(",")
                 prefix = "Models/benchmarks2/consensus/coin" + split_inst[0]
@@ -177,6 +182,12 @@ def parse_model(flag, opts):
     for f in edited_files:
         rm(f)
         shutil.move(f+".old", f)
+    model.gamma = gamma
+    init_vec = 0.1*np.ones((1,len(model.States)))/(len(model.States)-1)
+    init_vec[:,model.Init_state] = 0.9 
+    model.rho = init_vec
+    import pdb; pdb.set_trace()
+
     return model
 
 def parse_bool(flag):

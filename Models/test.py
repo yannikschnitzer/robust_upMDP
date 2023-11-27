@@ -114,6 +114,11 @@ def get_model_2():
 
     Test_Model.Enabled_actions = [[0,1],[0],[0],[0],[0]]
 
+    Test_Model.gamma = 0.99
+    init_vec = 0.1*np.ones((1,len(Test_Model.States)))/(len(Test_Model.States)-1)
+    init_vec[:,Test_Model.Init_state] = 0.9 
+    Test_Model.rho = init_vec
+    
     return Test_Model
 
 def get_model_3():

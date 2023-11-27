@@ -27,7 +27,8 @@ class base:
     Formulae = None
     opt = "max"
     Enabled_actions = None
-    
+    gamma = 0.99
+    rho = None
 
     def __init__(self, model=None):
         if model is not None:
@@ -42,7 +43,9 @@ class base:
             self.Formulae = model.Formulae
             self.opt = model.opt
             self.Enabled_actions = model.Enabled_actions
-    
+            self.gamma = model.gamma
+            self.rho = model.rho
+
     def check_timeout(self, start):
         if timer() - start > self.max_time:
             print("Timed out!")
@@ -134,6 +137,8 @@ class MDP(base):
         fixed_MC.Labels = self.Labels
         fixed_MC.Labelled_states = self.Labelled_states
         fixed_MC.opt = self.opt
+        fixed_MC.gamma = self.gamma
+        fixed_MC.rho = self.rho
         return fixed_MC
 
 class iMDP(MDP):
@@ -204,6 +209,9 @@ class pMDP(MDP):
         fixed_iMDP.trans_ids = self.trans_ids
         fixed_iMDP.opt = self.opt
         fixed_iMDP.params = params
+        
+        fixed_iMDP.gamma = self.gamma
+        fixed_iMDP.rho = self.rho
 
         return fixed_iMDP
 
@@ -232,6 +240,8 @@ class pMDP(MDP):
         fixed_MDP.trans_ids = self.trans_ids
         fixed_MDP.opt = self.opt
         fixed_MDP.params = params
+        fixed_MDP.gamma = self.gamma
+        fixed_MDP.rho = self.rho
 
         return fixed_MDP
 
@@ -324,6 +334,8 @@ class storm_upMDP:
         fixed_iMDP.trans_ids = self.trans_ids
         fixed_iMDP.opt = self.opt
         fixed_iMDP.params = params
+        fixed_iMDP.gamma = self.gamma
+        fixed_iMDP.rho = self.rho
 
         return fixed_iMDP
     
@@ -427,6 +439,8 @@ class storm_upMDP:
         out.opt = self.opt
         out.params = params
         out.Name = self.Name
+        out.gamma = self.gamma
+        out.rho = self.rho
         #print(times)
         return out
     

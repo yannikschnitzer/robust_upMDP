@@ -655,13 +655,14 @@ class subgrad(optimiser):
         for s, (s_primes, probs) in enumerate(zip(nom_MC.trans_ids, nom_MC.Transition_probs)):
             trans_arr[s][s_primes] = probs
         
-        init_vec = np.zeros((1,len(nom_MC.States)))
-        #init_vec[nom_MC.Init_state] = 1 # Might need to change this
-        init_vec = 0.1*np.ones((1,len(nom_MC.States)))/(len(nom_MC.States)-1)
-        init_vec[:,nom_MC.Init_state] = 0.9
-        gamma=0.99
+        init_vec = nom_MC.rho
+        #init_vec = np.zeros((1,len(nom_MC.States)))
+        ##init_vec[nom_MC.Init_state] = 1 # Might need to change this
+        #init_vec = 0.1*np.ones((1,len(nom_MC.States)))/(len(nom_MC.States)-1)
+        #init_vec[:,nom_MC.Init_state] = 0.9 # Hmmmm
+        gamma = nom_MC.gamma
         eta_pi = init_vec@np.linalg.inv(np.identity(len(nom_MC.States))-gamma*trans_arr)
-        
+        eta_pi *= (1-gamma) 
 
 
         num_batches = mp.cpu_count() 

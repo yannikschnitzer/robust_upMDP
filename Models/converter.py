@@ -86,4 +86,5 @@ def parse(storm_model, params, filename, props, f, weather= None):
                         for action in state.actions])
                         for state in storm_model.states])
     model.paramed_states = [i for i, states in enumerate(model.paramed) if any([any(acts) for acts in states])]
+    
     return model

@@ -106,7 +106,8 @@ class stormpy_io:
                 else:
                     pol = None
                 all_res += [result.at(state) for state in self.model.States]
-                res.append(result.at(self.mdp.initial_states[0]))
+                #res.append(result.at(self.mdp.initial_states[0]))
+                res.append(sum([elem*rho_s for elem, rho_s in zip(all_res, self.model.rho)]))
         else: 
             res = []
             all_res = []
@@ -122,7 +123,8 @@ class stormpy_io:
                 else:
                     pol = None
                 all_res += [result.at(state) for state in self.model.States]
-                res.append(result.at(self.mdp.initial_states[0]))
+                res.append(sum([elem*rho_s for elem, rho_s in zip(all_res, self.model.rho.flatten())]))
+                #res.append(result.at(self.mdp.initial_states[0]))
         return res, all_res, pol
 
 class PRISM_io:

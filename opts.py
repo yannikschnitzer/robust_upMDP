@@ -148,6 +148,7 @@ opt_settings = {"model":{"parser":parse_model,
                         "flags":["--sg_only"],
                         "default":False
                         },
+
                 }
 
 inst_opts = {"brp":["256,5","4096,5"],
