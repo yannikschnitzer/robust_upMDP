@@ -6,9 +6,9 @@ mdp
 //dtmc
 
 // number of chunks
-const int N=256;
+const int N=4096;
 // maximum number of retransmissions
-const int MAX=15;
+const int MAX=5;
 
 // reliability of channels
 const double pL;
@@ -137,3 +137,4 @@ module	channelL
 endmodule
 
 
+label "finished" = s=5 & T ;

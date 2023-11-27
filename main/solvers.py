@@ -650,7 +650,20 @@ class subgrad(optimiser):
         nom_MC_sol = nom_MC_sol.flatten() 
         nom_MC_list = []
         s_list = []
+
+        trans_arr = np.zeros((len(nom_MC.States),len(nom_MC.States)))
+        for s, (s_primes, probs) in enumerate(zip(nom_MC.trans_ids, nom_MC.Transition_probs)):
+            trans_arr[s][s_primes] = probs
         
+        init_vec = np.zeros((1,len(nom_MC.States)))
+        #init_vec[nom_MC.Init_state] = 1 # Might need to change this
+        init_vec = 0.1*np.ones((1,len(nom_MC.States)))/(len(nom_MC.States)-1)
+        init_vec[:,nom_MC.Init_state] = 0.9
+        gamma=0.99
+        eta_pi = init_vec@np.linalg.inv(np.identity(len(nom_MC.States))-gamma*trans_arr)
+        
+
+
         num_batches = mp.cpu_count() 
         batch_size = len(model.States)//num_batches+1
         acts_bool = [[True  if a in model.Enabled_actions[s] else False for a in model.Actions] for s in model.States]
@@ -678,6 +691,9 @@ class subgrad(optimiser):
             res_unbatched += elem
         del(res)
         grad = np.vstack(res_unbatched)
+        
+        grad = eta_pi.T*grad
+        
 
         time_grad = time.perf_counter()-pre_grad
         logging.debug("time for grad: "+str(time_grad))
@@ -691,10 +707,12 @@ class subgrad(optimiser):
 class interval(optimiser):
 
     def __init__(self, args):
+        self.max_time = args["timeout"]
         self.risk_func = calc_eps_risk_complexity
     
     def solve(self, samples, model):
         print("--------------------\nStarting iMDP solver")
+        model.max_time = self.max_time
         iMDP = model.build_imdp(samples)
         if iMDP is not None:
             supports = iMDP.supports

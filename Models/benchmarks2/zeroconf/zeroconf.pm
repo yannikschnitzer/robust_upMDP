@@ -59,7 +59,7 @@ const bool reset=false;
 //const double loss; // probability of message loss param??
 
 //const int N=2;
-const int K=2;
+const int K;
 const double loss;
 
 // PROBABILITIES
@@ -260,3 +260,5 @@ module host0
 	[] l=4 -> 1 : true;
 
 endmodule
+
+label "finished" = l=4 & ip=1 ;

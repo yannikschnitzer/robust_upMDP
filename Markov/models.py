@@ -27,6 +27,7 @@ class base:
     Formulae = None
     opt = "max"
     Enabled_actions = None
+    
 
     def __init__(self, model=None):
         if model is not None:
@@ -43,7 +44,7 @@ class base:
             self.Enabled_actions = model.Enabled_actions
     
     def check_timeout(self, start):
-        if time.perf_counter() - start > self.max_time:
+        if timer() - start > self.max_time:
             print("Timed out!")
             return True
         else:
@@ -144,7 +145,7 @@ class pMDP(MDP):
     Transition probabilities should now be functions over parameters
     """
     def build_imdp(self, params):
-        start = time.perf_counter()
+        start = timer()
         fixed_iMDP = iMDP()
         fixed_iMDP.States = self.States
         fixed_iMDP.Actions = self.Actions
