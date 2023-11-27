@@ -123,7 +123,8 @@ class mixed_opt(optimiser):
             if self.check_timeout(start):
                 return None, None
             # could also find best deterministic policy here
-            probs = self.test_pol(model, samples, pol)[1][:,model.Init_state]
+            probs = self.test_pol(model, samples, pol)[1]@model.rho.T
+            probs =probs.flatten()
             if model.opt == "max":
                 wc = min(probs)
                 if wc > best_wc:
@@ -180,6 +181,7 @@ class det(mixed_opt):
         self.risk_func = calc_eps_nonconvex
 
     def solve(self, samples, model):
+        print("--------------\nFinding best deterministic policy through Stackelberg")
         start = time.perf_counter()
         payoffs, pols, rel_samples = self.calc_payoff_mat(samples, model)
         if payoffs is None:
@@ -505,7 +507,10 @@ class subgrad(optimiser):
                 pol[s,a] = 1/len(model.Enabled_actions[s])
         wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
         
-        worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        if model.opt == "min":
+            worst = np.argmax((true_probs@(model.rho.T)))
+        else:
+            worst = np.argmin((true_probs@(model.rho.T)))
         worst = np.random.choice(worst.flatten())
         toc = time.perf_counter()
         logging.debug("Time for finding worst case: {:.3f}s".format(toc-tic)) # This is also done every iteration, could be sped up but takes ~6/1500 the time
@@ -520,7 +525,10 @@ class subgrad(optimiser):
         pol = 0.1*pol + 0.9*best_worst_pol # a nicer start point
         
         wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs)
-        worst = np.argwhere(true_probs[:,model.Init_state]==wc)
+        if model.opt == "min":
+            worst = np.argmax((true_probs@(model.rho.T)))
+        else:
+            worst = np.argmin((true_probs@(model.rho.T)))
         worst = np.random.choice(worst.flatten())
     
         if model.opt == "max":
@@ -582,7 +590,10 @@ class subgrad(optimiser):
             logging.debug("Time for projection step: {:.3f}".format(time_proj))
             wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs) # This is taking a little while? (like 1 min, could probably speed up)
             worst = np.argwhere(true_probs[:,model.Init_state]==wc)
-            worst = np.random.choice(worst.flatten())
+            if model.opt == "min":
+                worst = np.argmax((true_probs@(model.rho.T)))
+            else:
+                worst = np.argmin((true_probs@(model.rho.T)))
             wc_hist.append(wc)
             if model.opt == "max":
                 if wc > best:

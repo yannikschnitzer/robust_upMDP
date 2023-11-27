@@ -8,7 +8,7 @@ import Markov.storm_interface as storm_ui
 from os.path import exists
 from os import remove as rm
 import datetime
-
+import numpy as np
 import fileinput
 import shutil
 
@@ -182,11 +182,10 @@ def parse_model(flag, opts):
     for f in edited_files:
         rm(f)
         shutil.move(f+".old", f)
-    model.gamma = gamma
+    model.gamma=gamma
     init_vec = 0.1*np.ones((1,len(model.States)))/(len(model.States)-1)
     init_vec[:,model.Init_state] = 0.9 
     model.rho = init_vec
-    import pdb; pdb.set_trace()
 
     return model
 

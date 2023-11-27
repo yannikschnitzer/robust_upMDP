@@ -262,7 +262,7 @@ class storm_MDP(MDP):
     opt = "max"
 
 
-class storm_upMDP:
+class storm_upMDP(base):
     opt = "max"
     
     def parameter_dist(self):

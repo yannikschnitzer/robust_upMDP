@@ -52,7 +52,7 @@ class stormpy_io:
                         a_id = self.model.Enabled_actions[s].index(a)
                         for i, s_prime in enumerate(self.model.trans_ids[s][a_id]):
                             self_loop = False
-                            builder.add_next_value(choices, s_prime, self.model.Transition_probs[s][a_id][i])
+                            builder.add_next_value(choices, s_prime, self.model.gamma*self.model.Transition_probs[s][a_id][i])
                         choices += 1
                 if self_loop:
                     builder.add_next_value(choices, s, 1.0)
@@ -293,7 +293,7 @@ class PRISM_io:
                         
                         prob_idxs = [j for j in m.trans_ids[i][a_idx]]
                          
-                        trans_strings = ["[" + str(dec_round(prob[0],6)) + ","+str(dec_round(prob[1],6))+"]"
+                        trans_strings = ["[" + str(dec_round(self.model.gamma*prob[0],6)) + ","+str(dec_round(self.model.gamma*prob[1],6))+"]"
                                                     for prob in m.Transition_probs[i][a_idx]]
                         
                         subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
@@ -349,7 +349,7 @@ class PRISM_io:
                 
                 prob_idxs = [j for j in m.trans_ids[i]]
                 
-                trans_strings = [str(dec_round(prob,6))
+                trans_strings = [str(dec_round(self.model.gamma*prob,6))
                                             for prob in m.Transition_probs[i]]
                 
                 subsublist = [str(i)+" "+str(j)+" "+prob
@@ -435,12 +435,15 @@ class PRISM_io:
             pol_arr = None
             prob = float(str(res.stdout).split("Result: ")[1].split(" ")[0])
             all_probs = [prob] 
+            prob = self.model.rho@all_probs
         else:
             pol, all_probs = self.read()
-            prob = all_probs[self.model.Init_state]
+            prob = self.model.rho@all_probs
+            #prob = all_probs[self.model.Init_state]
             pol_arr = np.zeros((len(self.model.States), len(self.model.Actions)))
             for s, a in enumerate(pol):
                 pol_arr[s,int(a)] = 1
+        import pdb; pdb.set_trace()
         post_read = time.perf_counter()
         logging.debug("time solving {}".format(post_command-pre_command))
         logging.debug("time reading {}".format(post_read-post_command))
