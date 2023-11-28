@@ -29,6 +29,7 @@ class base:
     Enabled_actions = None
     gamma = 0.99
     rho = None
+    switch_res = False
 
     def __init__(self, model=None):
         if model is not None:
@@ -52,6 +53,44 @@ class base:
             return True
         else:
             return False
+    
+    def make_max(self):
+        new_model = copy.copy(self)
+        if self.opt == "min":
+            new_model.opt ="max"
+            new_formulae = []
+            for spec in self.Formulae:
+                spec_loc = spec.index("min")
+                new_spec = list(spec)
+                new_spec[spec_loc:spec_loc+3] = "max"
+               
+                if "F" in spec:
+                    F_loc = spec.index("F")
+                    new_spec[F_loc] = "G"
+                
+                if "&" in spec:
+                    and_loc = spec.index("&")
+                    new_spec[and_loc] = "|"
+                
+                if "|" in spec:
+                    or_loc = spec.index("|")
+                    new_spec[or_loc] = "&"
+                
+                add = True
+                idxs = []
+                counter = 0
+                for elem in spec:
+                    counter += 1
+                    if elem == '"':
+                        if add:
+                            idxs.append(counter-1)
+                        add = not add
+                for count, i in enumerate(idxs):
+                    new_spec.insert(i+count, "!")
+                new_formulae.append(''.join(new_spec))
+            new_model.Formulae = new_formulae
+            new_model.switch_res = True
+        return new_model
 
 class MC(base):
     """

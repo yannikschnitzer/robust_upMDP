@@ -24,6 +24,9 @@ class solver:
     def solve(self, samples, model):
         start = time.perf_counter()
         self.opt, self.opt_pol, self.supps, self.info = self.optimiser.solve(samples, model)
+        if model.switch_res:
+            self.opt = 1-self.opt
+
         if self.supps is not None:
             self.risk = self.get_risk(self.beta, len(samples), len(self.supps))
         else:

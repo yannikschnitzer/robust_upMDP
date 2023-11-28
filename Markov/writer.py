@@ -60,7 +60,7 @@ class stormpy_io:
             else:
                 for i, s_prime in enumerate(self.model.trans_ids[s]):
                     self_loop = False
-                    builder.add_next_value(s, s_prime, self.model.Transition_probs[s][i])
+                    builder.add_next_value(s, s_prime, self.model.gamma*self.model.Transition_probs[s][i])
                     choices += 1
                 if self_loop:
                     builder.add_next_value(s, s, 1.0)
@@ -68,7 +68,8 @@ class stormpy_io:
         return builder.build() 
         
     def write(self):
-        if hasattr(self.model, "mdp"):
+        #if hasattr(self.model, "mdp"):
+        if False:
             self.mdp = self.model.mdp
             self.specs = self.model.props
         else:
@@ -96,7 +97,7 @@ class stormpy_io:
             all_res = []
             for spec in self.specs:
                 get_pol = self.model.Actions is not None
-                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol, only_initial_states=True)
+                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol)
                 if self.model.Actions is not None:
                     pol = np.zeros((len(self.model.States), len(self.model.Actions)))
                     for s_num, s in enumerate(self.mdp.states):
@@ -107,13 +108,13 @@ class stormpy_io:
                     pol = None
                 all_res += [result.at(state) for state in self.model.States]
                 #res.append(result.at(self.mdp.initial_states[0]))
-                res.append(sum([elem*rho_s for elem, rho_s in zip(all_res, self.model.rho)]))
+                res.append(sum([elem*rho_s for elem, rho_s in zip(all_res, self.model.rho.flatten())]))
         else: 
             res = []
             all_res = []
             for spec in self.specs:
                 get_pol = self.model.Actions is not None
-                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol, only_initial_states=True)
+                result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol)
                 if self.model.Actions is not None:
                     pol = np.zeros((len(self.model.States), len(self.model.Actions)))
                     for s_num, s in enumerate(self.mdp.states):
@@ -293,8 +294,16 @@ class PRISM_io:
                         
                         prob_idxs = [j for j in m.trans_ids[i][a_idx]]
                          
-                        trans_strings = ["[" + str(dec_round(self.model.gamma*prob[0],6)) + ","+str(dec_round(self.model.gamma*prob[1],6))+"]"
-                                                    for prob in m.Transition_probs[i][a_idx]]
+                        trans_strings = []
+                        if self.model.opt =="max":
+                            for prob in m.Transition_probs[i][a_idx]:
+                                diff = (1-self.model.gamma)*prob[0]
+                                trans_strings += ["[" + str(max(0,dec_round(self.model.gamma*prob[0],6))) + ","+str(min(1,dec_round(prob[1]+diff,6)))+"]"]
+                        else:
+                            trans_strings = ["[" + str(dec_round(prob[0],6)) + ","+str(dec_round(prob[1],6))+"]" for prob in m.Transition_probs[i][a_idx]] #Don't have factor of gamma here...
+                        #    for prob in m.Transition_probs[i][a_idx]:
+                        #        diff = (1-self.model.gamma)*prob[1]
+                        #        trans_strings = ["[" + str(min(1,dec_round(prob[0]-diff,6))) + ","+str(max(0,dec_round(prob[1]*self.model.gamma,6)))+"]"]
                         
                         subsublist = [substring_start+" "+str(j)+" "+prob+" "+action_label
                                             for (j, prob) in zip(prob_idxs, trans_strings)]
@@ -389,6 +398,7 @@ class PRISM_io:
             if self.max:
                 if type(model.Transition_probs[0][0][0]) == tuple:
                     specification = 'Pmaxmin=? [ F "reached" ]'
+                    specification = model.Formulae[0]
                 else:
                     specification = 'Pmax=? [ F "reached" ]'
             else:
@@ -443,7 +453,6 @@ class PRISM_io:
             pol_arr = np.zeros((len(self.model.States), len(self.model.Actions)))
             for s, a in enumerate(pol):
                 pol_arr[s,int(a)] = 1
-        import pdb; pdb.set_trace()
         post_read = time.perf_counter()
         logging.debug("time solving {}".format(post_command-pre_command))
         logging.debug("time reading {}".format(post_read-post_command))

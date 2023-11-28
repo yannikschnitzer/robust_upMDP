@@ -589,7 +589,6 @@ class subgrad(optimiser):
             time_proj = time.perf_counter()-time_start-time_grads
             logging.debug("Time for projection step: {:.3f}".format(time_proj))
             wc, true_probs, _ = self.test_pol(model, samples, pol, paramed_models = sample_trans_probs) # This is taking a little while? (like 1 min, could probably speed up)
-            worst = np.argwhere(true_probs[:,model.Init_state]==wc)
             if model.opt == "min":
                 worst = np.argmax((true_probs@(model.rho.T)))
             else:
@@ -616,11 +615,10 @@ class subgrad(optimiser):
         print("Subgradient Descent took {:.3f}s".format(final_time))
         wc, true_probs, _ = self.test_pol(model, samples, best_pol, paramed_models = sample_trans_probs)
         if model.opt == "max":
-            active_sg = np.argwhere(true_probs[:, model.Init_state] <= wc+self.supp_tol) # this tol is hard to tune...
+            active_sg = np.argwhere(true_probs@model.rho.T <= wc+self.supp_tol) # this tol is hard to tune...
         else:
-            active_sg = np.argwhere(true_probs[:, model.Init_state] >= wc-self.supp_tol)
-        info = {"hist":best_hist, "all":true_probs[:, model.Init_state]}
-    
+            active_sg = np.argwhere(true_probs@model.rho.T >= wc-self.supp_tol)
+        info = {"hist":best_hist, "all":true_probs@model.rho.T}
         return best, best_pol, active_sg, info
    
     def grad_state(self, nom_MC_sol, MDP_trans, MDP_ids, args): #, actions_bool_set, s_set):
@@ -724,6 +722,10 @@ class interval(optimiser):
     
     def solve(self, samples, model):
         print("--------------------\nStarting iMDP solver")
+        new_model = model.make_max()
+        del(model)
+        model = new_model
+        del(new_model)
         model.max_time = self.max_time
         iMDP = model.build_imdp(samples)
         if iMDP is not None:
@@ -735,6 +737,8 @@ class interval(optimiser):
             res, _, _ = self.test_pol(model, samples, pol)
         else:
             return None, None, None, None
+        if model.switch_res:
+            res = 1-res
         return res, pol, supports, None
 
 class thom_base(optimiser):
@@ -743,8 +747,7 @@ class thom_base(optimiser):
         probs = []
         min_prob = 1
         discarded = 0
-        for sample in samples:
-            
+        for sample in samples: 
             test_MDP = model.fix_params(sample)
             #IO = writer.PRISM_io(sample)
             IO = writer.stormpy_io(test_MDP)
