@@ -54,7 +54,7 @@ def parse_model(flag, opts):
     try:
         gamma = parse_num("-gamma", [float, 0, 1])
     except:
-        gamma = 0.99
+        gamma = 1-1e-5 
     if model_name == "test":
         model = test.get_model()
     elif model_name == "test2":
@@ -186,7 +186,8 @@ def parse_model(flag, opts):
     init_vec = 0.1*np.ones((1,len(model.States)))/(len(model.States)-1)
     init_vec[:,model.Init_state] = 0.9 
     model.rho = init_vec
-
+    import pdb; pdb.set_trace()
+    print("|S||A| = {}".format(len(model.States)*len(model.Actions)))
     return model
 
 def parse_bool(flag):

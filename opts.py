@@ -14,7 +14,7 @@ opt_settings = {"model":{"parser":parse_model,
                     "parser":parse_num, 
                     "args":[int,1], 
                     "flags":["-N"],
-                    "default":100
+                    "default":200
                     },
                 "beta":{
                     "parser":parse_num,
@@ -128,7 +128,7 @@ opt_settings = {"model":{"parser":parse_model,
                         "parser":parse_num,
                         "args":[float, 0],
                         "flags":["--init_step"],
-                        "default":1
+                        "default":10
                         },
                 "step_exp":{
                         "parser":parse_num,

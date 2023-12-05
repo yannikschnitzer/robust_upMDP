@@ -744,10 +744,13 @@ class interval(optimiser):
 class thom_base(optimiser):
 
     def calc_probs(self, model, samples):
+        start = time.perf_counter()
         probs = []
         min_prob = 1
         discarded = 0
         for sample in samples: 
+            if self.check_timeout(start):
+                break
             test_MDP = model.fix_params(sample)
             #IO = writer.PRISM_io(sample)
             IO = writer.stormpy_io(test_MDP)
@@ -759,7 +762,7 @@ class thom_base(optimiser):
 
 class thom_relax(thom_base):
     def __init__(self, args):
-
+        self.max_time = args["timeout"]
         self.rho = args["rho"]
         self.risk_func = calc_eps_risk_complexity
 
@@ -803,6 +806,7 @@ class thom_relax(thom_base):
 
 class thom_discard(thom_base):
     def __init__(self, args): 
+        self.max_time = args["timeout"]
         self.lamb = args["lambda"]
         if args["lambda"] is not None:
             self.risk_func = calc_eta_discard

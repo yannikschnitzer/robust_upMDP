@@ -6,9 +6,9 @@ mdp
 //dtmc
 
 // number of chunks
-const int N=4096;
+const int N;
 // maximum number of retransmissions
-const int MAX=5;
+const int MAX;
 
 // reliability of channels
 const double pL;
