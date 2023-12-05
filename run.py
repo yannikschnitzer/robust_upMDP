@@ -34,6 +34,13 @@ def main():
             sol.parallel_test = False
         sol.solve(samples, model)
         sol.output() 
+    
+    if args["output_figs"] or args["save_figs"]:
+        if not args["sg_only"]:
+            solvers[0].plot_hist(solvers[4].opt)
+        else:
+            solvers[0].plot_hist()
+
 
 if __name__=="__main__":
     main()

@@ -1,5 +1,6 @@
 from PAC.funcs import MC_sampler, MC_perturbed 
 import time
+import datetime
 
 class solver:
     """
@@ -20,6 +21,7 @@ class solver:
         self.run_MC = args["MC"]
         self.run_MC_pert = args["MC_pert"]
         self.MC_samples = args["MC_samples"]
+        self.save_plots = args["save_figs"]
 
     def solve(self, samples, model):
         start = time.perf_counter()
@@ -36,6 +38,41 @@ class solver:
             self.emp_risk = MC_sampler(model, self.MC_samples, self.opt, self.opt_pol)
         if self.run_MC_pert:
             self.emp_pert_risk = MC_perturbed(model, self.MC_samples, self.opt, self.opt_pol)
+
+    def plot_hist(self, opt_sat=None):
+        import matplotlib.pyplot as plt
+        start = datetime.datetime.now().isoformat().split('.')[0]
+        if opt_sat == None:
+            opt_sat = self.opt 
+            self.info["hist"].pop(-1)
+        if opt_sat > self.info["hist"][0]:
+            res_plot = [opt_sat - i for i in self.info["hist"]]
+        else:
+            res_plot = [i-opt_sat for i in self.info["hist"]]
+        fig, ax = plt.subplots()
+        ax.semilogy(res_plot)
+        ax.set_xlabel("Iteration")
+        ax.set_ylabel("Distance from final satisfaction probability")
+
+
+        if self.save_plots:
+            fname = "plots/" + start + 'dist_fig'
+            plt.savefig(fname + ".png", bbox_inches="tight")
+            plt.savefig(fname + ".pdf", bbox_inches="tight")
+        else:
+            plt.show()
+
+        fig2, ax2 = plt.subplots()
+        ax2.semilogy(self.info["hist"])
+        ax2.set_xlabel("Iteration")
+        ax2.set_ylabel("Satisfaction probability")
+
+        if self.save_plots:
+           fname = "plots/" + start + 'prob_fig'
+           plt.savefig(fname + ".png", bbox_inches="tight")
+           plt.savefig(fname + ".pdf", bbox_inches="tight")
+        else:
+            plt.show()
 
     def output(self):
         print("Solving took {:.2f}s".format(self.runtime))
