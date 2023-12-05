@@ -1,6 +1,5 @@
 from PAC.funcs import MC_sampler, MC_perturbed 
 import time
-import datetime
 
 class solver:
     """
@@ -41,7 +40,6 @@ class solver:
 
     def plot_hist(self, opt_sat=None):
         import matplotlib.pyplot as plt
-        start = datetime.datetime.now().isoformat().split('.')[0]
         fig, ax = plt.subplots()
         if opt_sat == None:
             opt_sat = self.opt 
@@ -58,7 +56,7 @@ class solver:
 
 
         if self.save_plots:
-            fname = "plots/" + start + 'dist_fig'
+            fname = self.save_plots + 'dist_fig'
             plt.savefig(fname + ".png", bbox_inches="tight")
             plt.savefig(fname + ".pdf", bbox_inches="tight")
         else:
@@ -70,7 +68,7 @@ class solver:
         ax2.set_ylabel("Satisfaction probability")
 
         if self.save_plots:
-           fname = "plots/" + start + 'prob_fig'
+           fname = self.save_plots + 'prob_fig'
            plt.savefig(fname + ".png", bbox_inches="tight")
            plt.savefig(fname + ".pdf", bbox_inches="tight")
         else:
