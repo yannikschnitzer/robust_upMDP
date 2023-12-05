@@ -42,17 +42,19 @@ class solver:
     def plot_hist(self, opt_sat=None):
         import matplotlib.pyplot as plt
         start = datetime.datetime.now().isoformat().split('.')[0]
+        fig, ax = plt.subplots()
         if opt_sat == None:
             opt_sat = self.opt 
             self.info["hist"].pop(-1)
+            ax.set_ylabel("Distance from final satisfaction probability")
+        else:
+            ax.set_ylabel("Distance from optimal satisfaction probability")
         if opt_sat > self.info["hist"][0]:
             res_plot = [opt_sat - i for i in self.info["hist"]]
         else:
             res_plot = [i-opt_sat for i in self.info["hist"]]
-        fig, ax = plt.subplots()
         ax.semilogy(res_plot)
         ax.set_xlabel("Iteration")
-        ax.set_ylabel("Distance from final satisfaction probability")
 
 
         if self.save_plots:
