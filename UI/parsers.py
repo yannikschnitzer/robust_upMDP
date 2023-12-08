@@ -106,7 +106,10 @@ def parse_model(flag, opts):
                 shutil.copyfile(model_f, model_f+".old")
                 replace_line(model_f, search, replace)
             if model_name == "brp":
-                bisim = "strong"
+                if inst[0] == 256:
+                    bisim = "strong"
+                else:
+                    bisim = "none"
                 split_inst = inst.split(",")
                 prefix = "Models/benchmarks2/brpmdp/brp"
                 model_f = prefix+".pm"
