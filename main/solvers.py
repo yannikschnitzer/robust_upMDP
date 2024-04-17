@@ -610,6 +610,7 @@ class subgrad(optimiser):
                 change=abs(wc_hist[-2]-wc_hist[-1])
                 logging.info("Value change: {:.6f}".format(change))
                 if change < self.tol:
+                    print("Change to small!")
                     break
         final_time = time.perf_counter() - start
         print("Subgradient Descent took {:.3f}s".format(final_time))
