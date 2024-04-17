@@ -49,9 +49,9 @@ def gen_samples(model, N):
             print(e, pair[i])
             i += 1
         rational_parameter_assignments = dict(
-            [[x, stormpy.RationalRF(val)] for x, val in point.items()])
+            [[x, val] for x, val in point.items()])
         samples.append(rational_parameter_assignments)
-    #samples = [model.param_sampler() for j in range(N)]
+    samples = [model.param_sampler() for j in range(N)]
     return samples
 
 def get_samples(args):
