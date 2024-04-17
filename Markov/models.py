@@ -307,10 +307,9 @@ class storm_upMDP(base):
     def parameter_dist(self):
         if "coin" in self.filename:
             s = np.random.uniform(0.2, 0.8)
-        
         else:
-            #s = np.random.uniform(1e-5, 1-1e-5) # This was Thom's distribution
-            s = (np.pi+np.random.vonmises(0,5))/(2*np.pi) # This is a more interesting distribution
+            s = np.random.uniform(0.75, 0.95) # This was Thom's distribution
+            #s = (np.pi+np.random.vonmises(0,5))/(2*np.pi) # This is a more interesting distribution
         return s
 
 
