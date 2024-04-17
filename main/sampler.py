@@ -37,7 +37,7 @@ def gen_samples(model, N):
             print(e, pair[i])
             i += 1
         samples.append(point)
-    #samples = [model.param_sampler() for j in range(N)]
+    samples = [model.param_sampler() for j in range(N)]
     return samples
 
 def get_samples(args):
