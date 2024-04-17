@@ -386,7 +386,10 @@ class storm_upMDP(base):
             drone = False
         
         if 'reporter' in self.filename:
-            print("SAV detected!!!")
+            sav = True
+            print("IMDP Params:" + self.params)
+        else:
+            sav = False
         
         # If we are performing the drone benchmark
         if drone:
