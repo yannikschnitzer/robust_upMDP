@@ -14,7 +14,7 @@ def main():
     print("Generated Samples: ")
     for sample in samples:
         print(sample)
-
+    print("HER --------------")
     if args["file_write"]:
         sys.stdout = open(args["file_write"],'wt')
 
