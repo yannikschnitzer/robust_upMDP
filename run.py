@@ -11,16 +11,16 @@ def main():
     args = get_args()
     samples = get_samples(args)
     
-    print("Generated Samples: ")
-    for sample in samples:
-        print(sample)
+    # print("Generated Samples: ")
+    # for sample in samples:
+    #     print(sample)
     # if args["file_write"]:
     #     sys.stdout = open(args["file_write"],'wt')
 
     model = args["model"]
     solvers = []
     
-    print("Runnging Subgrad Solver-----------------------------------")
+    #print("Runnging Subgrad Solver-----------------------------------")
     #solvers.append(solver(subgrad, args))
     #solvers.append(solver(interval, args))
     solvers.append(solver(thom_discard, args))

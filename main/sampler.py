@@ -227,7 +227,7 @@ def gen_samples(model, N):
         i = 0
         for e in model.params:
             point[e] = stormpy.RationalRF(pair[i])
-            print(e, pair[i])
+            #print(e, pair[i])
             i += 1
         rational_parameter_assignments = dict(
             [[x, val] for x, val in point.items()])
