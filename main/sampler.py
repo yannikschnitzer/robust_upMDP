@@ -15,6 +15,7 @@ def save_data(filename, data):
         pickle.dump(data, f)
 
 def gen_samples(model, N):
+    print("Num Samples:", N)
     samples = [model.param_sampler() for j in range(N)]
     return samples
 
