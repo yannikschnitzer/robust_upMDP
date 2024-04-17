@@ -11,7 +11,7 @@ def main():
     args = get_args()
     samples = get_samples(args)
     
-    print("Generated Samples: "l, samples)
+    print("Generated Samples: ", samples)
     if args["file_write"]:
         sys.stdout = open(args["file_write"],'wt')
 
