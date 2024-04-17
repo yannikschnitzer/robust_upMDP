@@ -406,6 +406,7 @@ class PRISM_io:
                     specification = 'Pminmax=? [ F "reached" ]'
                 else:
                     specification = 'Pmin=? [ F "reached" ]'
+        print("========= I wrote specificaiton:",specification)
         self.write_file(specification, self.spec_filename)
         return specification
 
