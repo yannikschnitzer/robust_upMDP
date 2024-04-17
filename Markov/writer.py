@@ -415,7 +415,7 @@ class PRISM_io:
         """
         import subprocess
         spec = self.specification
-
+        print("=========================== solving imdp spec", self.specification)
         if self.model.Enabled_actions is not None:
             options = ' -ex -exportstrat "'+self.policy_filename+'"' + \
                       ' -exportvector "'+self.vector_filename+'"'
