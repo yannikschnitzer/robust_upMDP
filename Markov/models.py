@@ -387,7 +387,7 @@ class storm_upMDP(base):
         
         if 'reporter' in self.filename:
             sav = True
-            print("IMDP Params:" + self.params)
+            print("IMDP Params:",self.params)
         else:
             sav = False
         
