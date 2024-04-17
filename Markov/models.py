@@ -385,6 +385,9 @@ class storm_upMDP(base):
         else:
             drone = False
         
+        if 'reporter' in self.filename:
+            print("SAV detected!!!")
+        
         # If we are performing the drone benchmark
         if drone:
             groups = create_prism.parameter_groups()
