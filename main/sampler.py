@@ -51,6 +51,7 @@ def gen_samples(model, N):
         rational_parameter_assignments = dict(
             [[x, val] for x, val in point.items()])
         samples.append(rational_parameter_assignments)
+    print("Hallo")
     #samples = [model.param_sampler() for j in range(N)]
     return samples
 
