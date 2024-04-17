@@ -222,7 +222,7 @@ def gen_samples(model, N):
     samples = []
 
     for pair in sample_array:
-        print("Pair:",pair)
+        #print("Pair:",pair)
         point = dict()
         i = 0
         for e in model.params:
@@ -232,7 +232,7 @@ def gen_samples(model, N):
         rational_parameter_assignments = dict(
             [[x, val] for x, val in point.items()])
         samples.append(rational_parameter_assignments)
-    print("Hallo")
+    #print("Hallo")
  #   samples = [model.param_sampler() for j in range(N)]
     return samples
 
