@@ -1,4 +1,4 @@
-mport pickle
+import pickle
 
 def load_samples(filename):
     with open(filename, 'rb') as f:
