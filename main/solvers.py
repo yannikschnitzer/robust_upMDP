@@ -723,6 +723,7 @@ class interval(optimiser):
     
     def solve(self, samples, model):
         print("--------------------\nStarting iMDP solver")
+        print("hereeeeeeeeeeeeeee")
         new_model = model.make_max()
         del(model)
         model = new_model
