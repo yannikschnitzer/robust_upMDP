@@ -9,7 +9,7 @@ mdp
 
 //PARAMETERS
 //The difference of the reliability of the channels between the worst and at the best position
-const double pLDiff=0.9;
+const double pLDiff=0.1;
 const double pHDiff=0.1;
 //Scaling factor for the minimum reliability of the channels
 const double pL;//=8/9;
