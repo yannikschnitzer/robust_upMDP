@@ -431,8 +431,9 @@ class storm_upMDP(base):
                 #else:
                 #    s = np.random.uniform(1e-5,1-1e-5)
 
-        
+                print(x, s)
                 point[x] = stormpy.RationalRF(s)
+            print("-------")
         
         # Assign parameter values to model
         rational_parameter_assignments = dict(
