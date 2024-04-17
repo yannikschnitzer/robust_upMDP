@@ -41,6 +41,7 @@ def gen_samples(model, N):
     samples = []
 
     for pair in sample_array:
+        print("Pair:",pair)
         for i in range(len(model.params)):
             point = dict()
             point[model.params[i]] = stormpy.RationalRF(pair[i])
