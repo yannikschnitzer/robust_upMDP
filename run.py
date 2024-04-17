@@ -21,9 +21,9 @@ def main():
     solvers = []
     
     print("Runnging Subgrad Solver-----------------------------------")
-    solvers.append(solver(subgrad, args))
+    #solvers.append(solver(subgrad, args))
     #solvers.append(solver(interval, args))
-    # solvers.append(solver(thom_discard, args))
+    solvers.append(solver(thom_discard, args))
     
     if not args["sg_only"]:
         solvers.append(solver(det, args))
