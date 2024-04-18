@@ -363,6 +363,7 @@ class storm_upMDP(base):
         fixed_iMDP.Name = self.Name
         fixed_iMDP.Formulae = []
         for formula in self.Formulae:
+            print("======== Formula:" , formula)
             if "Pmax" in formula:
                 fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
             elif "Pmin" in formula:
