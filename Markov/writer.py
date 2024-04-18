@@ -113,6 +113,7 @@ class stormpy_io:
             res = []
             all_res = []
             for spec in self.specs:
+                print("======== Specifications:", spec)
                 get_pol = self.model.Actions is not None
                 result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol)
                 if self.model.Actions is not None:
