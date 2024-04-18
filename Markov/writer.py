@@ -83,6 +83,7 @@ class stormpy_io:
     def _write_specification(self):
         specs = []
         for f in self.model.Formulae:
+            print("=====Formula:", f)
             specs += stormpy.parse_properties_without_context(f)
         return specs
 
@@ -113,7 +114,7 @@ class stormpy_io:
             res = []
             all_res = []
             for spec in self.specs:
-                print("======== Specifications:", spec)
+                #print("======== Specifications:", spec)
                 get_pol = self.model.Actions is not None
                 result = stormpy.check_model_sparse(self.mdp, spec, extract_scheduler=get_pol)
                 if self.model.Actions is not None:
