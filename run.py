@@ -18,6 +18,7 @@ def main():
     #     sys.stdout = open(args["file_write"],'wt')
 
     model = args["model"]
+    print("MODEL:::::::", model)
     solvers = []
     
     #print("Runnging Subgrad Solver-----------------------------------")
