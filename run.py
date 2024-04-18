@@ -18,13 +18,13 @@ def main():
     #     sys.stdout = open(args["file_write"],'wt')
 
     model = args["model"]
-    print("MODEL:::::::", model)
+    #print("MODEL:::::::", model)
     solvers = []
     
     #print("Runnging Subgrad Solver-----------------------------------")
     solvers.append(solver(subgrad, args))
-    #solvers.append(solver(interval, args))
-    #solvers.append(solver(thom_discard, args))
+    solvers.append(solver(interval, args))
+    solvers.append(solver(thom_discard, args))
     
     if not args["sg_only"]:
         solvers.append(solver(det, args))
