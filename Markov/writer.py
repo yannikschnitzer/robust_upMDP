@@ -172,6 +172,7 @@ class PRISM_io:
             self._write_explicit()
         else:
             self._write()
+             
 
     def write_file(self, content, filename, mode="w"):
         """
@@ -192,8 +193,11 @@ class PRISM_io:
             if self.horizon == 'infinite':
                 optimal_policy = np.zeros((len(self.model.States)))
                 for s in policy:
-                    act = int(s[1].split("_")[-1])
-                    optimal_policy[int(s[0].split("(")[1].split(")")[0])] = act
+                    try:
+                        act = int(s[1].split("_")[-1])
+                        optimal_policy[int(s[0].split("(")[1].split(")")[0])] = act
+                    except:
+                        continue
                 vector_file = self.vector_filename
                 optimal_reward = np.genfromtxt(vector_file).flatten()
                 if not self.opt_thresh:
