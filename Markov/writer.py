@@ -83,7 +83,7 @@ class stormpy_io:
     def _write_specification(self):
         specs = []
         for f in self.model.Formulae:
-            print("=====Formula:", f)
+            #print("=====Formula:", f)
             specs += stormpy.parse_properties_without_context(f)
         return specs
 

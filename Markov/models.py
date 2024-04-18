@@ -42,6 +42,7 @@ class base:
             self.Name = model.Name
             self.trans_ids = model.trans_ids
             self.Formulae = model.Formulae
+            print(" ================ INITIALIZING FORMUKA", self.Formulae)
             self.opt = model.opt
             self.Enabled_actions = model.Enabled_actions
             self.gamma = model.gamma
