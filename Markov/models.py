@@ -42,7 +42,7 @@ class base:
             self.Name = model.Name
             self.trans_ids = model.trans_ids
             self.Formulae = model.Formulae
-            print(" ================ INITIALIZING FORMUKA", self.Formulae)
+            #print(" ================ INITIALIZING FORMUKA", self.Formulae)
             self.opt = model.opt
             self.Enabled_actions = model.Enabled_actions
             self.gamma = model.gamma
@@ -364,7 +364,7 @@ class storm_upMDP(base):
         fixed_iMDP.Name = self.Name
         fixed_iMDP.Formulae = []
         for formula in self.Formulae:
-            print("======== Formula:" , formula)
+            #print("======== Formula:" , formula)
             if "Pmax" in formula:
                 fixed_iMDP.Formulae.append("Pmaxmin"+formula[4:])
             elif "Pmin" in formula:
