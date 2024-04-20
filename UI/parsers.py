@@ -39,7 +39,9 @@ def parse_num(flag, num_type, min_val=-sys.maxsize, max_val=sys.maxsize):
          raise Exception("Please select a valid number of type "+str(num_type)+" for flag "+flag+" with value between "+str(min_val)+" and "+str(max_val))
 
 def parse_str(flag, opts):
+    print("Getting val")
     val = get_val(flag)
+    print("Val: ", val)
     if opts is not None:
         if val not in opts:
             opt_str = "\nValid options are:\n"
@@ -49,6 +51,7 @@ def parse_str(flag, opts):
     return val
 
 def parse_model(flag, opts):
+    print("Parsing str: ", flag, opts)
     model_name = parse_str(flag, opts)
     edited_files = []
     try:
